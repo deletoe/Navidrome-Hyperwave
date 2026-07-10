@@ -943,6 +943,7 @@
   [data-theme="cinematic"] .playback-rail {
     display: grid;
     grid-template-columns: minmax(0, 1fr) var(--wide-queue);
+    grid-template-rows: minmax(0, 1fr);
     height: auto;
     border-top: var(--frame);
     border-left: 0;
@@ -956,6 +957,8 @@
       "heading track sliders";
     align-items: center;
     gap: 0.55rem 1rem;
+    min-height: 0;
+    overflow: hidden;
     border-bottom: 0;
   }
 
@@ -977,6 +980,20 @@
   [data-theme="bloom"] .player-sliders,
   [data-theme="cinematic"] .player-sliders {
     grid-area: sliders;
+  }
+
+  [data-theme="bloom"] .player-sliders button,
+  [data-theme="cinematic"] .player-sliders button,
+  [data-theme="rock"] .player-sliders button {
+    grid-column: auto;
+  }
+
+  [data-theme="bloom"] .player-sliders input[type="range"],
+  [data-theme="cinematic"] .player-sliders input[type="range"],
+  [data-theme="rock"] .player-sliders input[type="range"] {
+    height: 1.75rem;
+    min-height: 1.75rem;
+    padding-block: 0;
   }
 
   [data-theme="bloom"] .queue-panel,
@@ -1032,6 +1049,7 @@
   [data-theme="rock"] .playback-rail {
     display: grid;
     grid-template-columns: minmax(0, 1fr) var(--wide-queue);
+    grid-template-rows: minmax(0, 1fr);
     height: auto;
     border-top: 4px solid var(--theme-primary);
     border-left: 0;
@@ -1044,6 +1062,8 @@
       "controls sliders";
     align-items: center;
     gap: 0.45rem 0.8rem;
+    min-height: 0;
+    overflow: hidden;
     border-top: 0;
     border-bottom: 0;
   }
@@ -1054,6 +1074,7 @@
   [data-theme="rock"] .player-sliders { grid-area: sliders; }
 
   [data-theme="rock"] .queue-panel {
+    height: 100%;
     overflow: hidden;
     border-top: 0;
     border-left: 4px solid var(--theme-secondary);
