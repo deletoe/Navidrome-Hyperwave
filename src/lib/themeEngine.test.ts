@@ -67,6 +67,7 @@ describe("visual personality engine", () => {
     expect(new Set(themes.map(({ id }) => id))).toEqual(
       new Set(["prism", "cyber", "bloom", "pixel", "rock", "cinematic", "lounge"]),
     );
+    expect(new Set(themes.map(({ motionDuration }) => motionDuration)).size).toBe(7);
 
     for (const theme of themes) {
       expect(theme.colors).toEqual({
@@ -84,7 +85,8 @@ describe("visual personality engine", () => {
       expect(theme.density).toMatch(/^(compact|balanced|spacious)$/);
       expect(theme.frameStyle).toMatch(/^(soft|line|cut|hard|editorial)$/);
       expect(theme.texture).not.toHaveLength(0);
-      expect(theme.motionDuration).toBeGreaterThan(0);
+      expect(theme.motionDuration).toBeGreaterThanOrEqual(600);
+      expect(theme.motionDuration).toBeLessThanOrEqual(900);
     }
   });
 

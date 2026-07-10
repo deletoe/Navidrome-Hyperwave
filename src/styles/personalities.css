@@ -57,7 +57,6 @@
 [data-theme] .entity-hero,
 [data-theme] .server-status,
 [data-theme] .player-dock,
-[data-theme] .queue-panel,
 [data-theme] .navigation-rail {
   transition:
     border-radius var(--control-duration) var(--motion-easing),
@@ -778,6 +777,19 @@
   background: rgba(16, 29, 28, 0.94);
 }
 
+[data-theme="lounge"] .player-dock__artwork,
+[data-theme="lounge"] .player-sheet__artwork {
+  border-radius: 50%;
+  animation: lounge-turntable-spin 18s linear infinite;
+  animation-play-state: paused;
+  will-change: transform;
+}
+
+[data-theme="lounge"][data-playing="true"] .player-dock__artwork,
+[data-theme="lounge"][data-playing="true"] .player-sheet__artwork {
+  animation-play-state: running;
+}
+
 [data-theme="lounge"] .queue-panel {
   border-left: 1px solid var(--theme-primary);
   background: rgba(8, 13, 13, 0.92);
@@ -945,8 +957,11 @@
     grid-template-columns: minmax(0, 1fr) var(--wide-queue);
     grid-template-rows: minmax(0, 1fr);
     height: auto;
+    overflow: visible;
     border-top: var(--frame);
     border-left: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   [data-theme="bloom"] .player-dock,
@@ -959,8 +974,10 @@
     align-items: center;
     gap: 0.55rem 1rem;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     border-bottom: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   [data-theme="bloom"] .player-dock__heading,
@@ -1067,8 +1084,11 @@
     grid-template-columns: minmax(0, 1fr) var(--wide-queue);
     grid-template-rows: minmax(0, 1fr);
     height: auto;
+    overflow: visible;
     border-top: 4px solid var(--theme-primary);
     border-left: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   [data-theme="rock"] .player-dock {
@@ -1080,9 +1100,11 @@
     align-items: center;
     gap: 0.45rem 0.8rem;
     min-height: 0;
-    overflow: hidden;
+    overflow: visible;
     border-top: 0;
     border-bottom: 0;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   [data-theme="rock"] .player-dock__heading { grid-area: heading; }
@@ -1224,6 +1246,10 @@
   100% { opacity: 0; transform: translate3d(4%, -10%, 0) scale(1.12); }
 }
 
+@keyframes lounge-turntable-spin {
+  to { transform: rotate(1turn); }
+}
+
 @media (min-width: 768px) and (max-width: 1179px) {
   [data-theme] .ambient-layer {
     opacity: 0.78;
@@ -1355,6 +1381,12 @@
   [data-theme] .ambient-layer,
   [data-theme] .ambient-layer::before,
   [data-theme] .ambient-layer::after {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  [data-theme="lounge"] .player-dock__artwork,
+  [data-theme="lounge"] .player-sheet__artwork {
     animation: none !important;
     transform: none !important;
   }

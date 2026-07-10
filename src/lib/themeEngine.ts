@@ -22,7 +22,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "balanced",
     frameStyle: "soft",
     texture: "prismatic haze",
-    motionDuration: 520,
+    motionDuration: 760,
     scene: {
       layout: "workstation",
       transition: "refract",
@@ -51,7 +51,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "compact",
     frameStyle: "line",
     texture: "neon coordinate grid",
-    motionDuration: 280,
+    motionDuration: 640,
     scene: {
       layout: "console",
       transition: "scan",
@@ -80,7 +80,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "spacious",
     frameStyle: "soft",
     texture: "floating petal glass",
-    motionDuration: 720,
+    motionDuration: 820,
     scene: {
       layout: "garden",
       transition: "bloom",
@@ -109,7 +109,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "compact",
     frameStyle: "hard",
     texture: "pixel scanline blocks",
-    motionDuration: 160,
+    motionDuration: 600,
     scene: {
       layout: "quest",
       transition: "blocks",
@@ -138,7 +138,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "compact",
     frameStyle: "cut",
     texture: "torn diagonal stage tape",
-    motionDuration: 220,
+    motionDuration: 700,
     scene: {
       layout: "zine",
       transition: "tear",
@@ -196,7 +196,7 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     density: "balanced",
     frameStyle: "line",
     texture: "brass line and slow smoke",
-    motionDuration: 1100,
+    motionDuration: 860,
     scene: {
       layout: "club",
       transition: "smoke",
