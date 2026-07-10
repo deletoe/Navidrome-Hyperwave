@@ -12,6 +12,7 @@ import {
 import { PlayerDock } from "./components/PlayerDock";
 import { QueuePanel } from "./components/QueuePanel";
 import { SearchView } from "./components/SearchView";
+import { ThemeBurst } from "./components/ThemeBurst";
 import { Toast } from "./components/Toast";
 import { useAudioPlayer } from "./hooks/useAudioPlayer";
 import { useNavidrome } from "./hooks/useNavidrome";
@@ -52,6 +53,12 @@ export default function App() {
   const pendingPlay = useRef(false);
   const [playRequest, setPlayRequest] = useState(0);
   const theme = resolveThemeForTrack(currentTrack);
+  const previousThemeId = useRef(theme.id);
+  const themeSequence = useRef(0);
+  if (previousThemeId.current !== theme.id) {
+    previousThemeId.current = theme.id;
+    themeSequence.current += 1;
+  }
   const toastMessage = navidrome.mutationError || player.error || notice;
 
   useEffect(() => {
@@ -268,6 +275,11 @@ export default function App() {
         data-theme={theme.id}
         data-density={theme.density}
         data-frame={theme.frameStyle}
+        data-layout={theme.scene.layout}
+        data-transition={theme.scene.transition}
+        data-view={view}
+        data-playing={player.isPlaying}
+        data-has-track={Boolean(currentTrack)}
         style={themeToCssVars(theme)}
       >
         <div className="ambient-layer" aria-hidden="true" />
@@ -293,8 +305,19 @@ export default function App() {
       data-theme={theme.id}
       data-density={theme.density}
       data-frame={theme.frameStyle}
+      data-layout={theme.scene.layout}
+      data-transition={theme.scene.transition}
+      data-view={view}
+      data-playing={player.isPlaying}
+      data-has-track={Boolean(currentTrack)}
       style={themeToCssVars(theme)}
     >
+      <ThemeBurst
+        key={`${theme.id}-${themeSequence.current}`}
+        theme={theme}
+        active={Boolean(currentTrack)}
+        sequence={themeSequence.current}
+      />
       <div className="ambient-layer" aria-hidden="true" />
       <a className="skip-link" href="#main-content">
         Skip to archive content

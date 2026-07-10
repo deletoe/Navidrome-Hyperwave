@@ -96,7 +96,12 @@ export function PlayerDock({
   }
 
   return (
-    <section className="player-dock mini-player" aria-labelledby="now-playing-heading">
+    <section
+      className="player-dock mini-player"
+      data-playing={player.isPlaying}
+      data-has-track={Boolean(currentTrack)}
+      aria-labelledby="now-playing-heading"
+    >
       <header className="player-dock__heading">
         <div>
           <p className="eyebrow">Now playing</p>

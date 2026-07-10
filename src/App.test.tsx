@@ -307,6 +307,50 @@ describe("accessible collection actions", () => {
 });
 
 describe("compact player interactions", () => {
+  it("exposes playback and track state on the stable player dock", () => {
+    const playing = playerController();
+    playing.isPlaying = true;
+    const paused = playerController();
+    const { container, rerender } = render(
+      <PlayerDock
+        currentTrack={track}
+        player={playing}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        onToggleQueue={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".player-dock")).toHaveAttribute(
+      "data-playing",
+      "true",
+    );
+    expect(container.querySelector(".player-dock")).toHaveAttribute(
+      "data-has-track",
+      "true",
+    );
+
+    rerender(
+      <PlayerDock
+        player={paused}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        onToggleQueue={vi.fn()}
+      />,
+    );
+
+    expect(container.querySelector(".player-dock")).toHaveAttribute(
+      "data-playing",
+      "false",
+    );
+    expect(container.querySelector(".player-dock")).toHaveAttribute(
+      "data-has-track",
+      "false",
+    );
+  });
+
   it("offers accessible favorite controls in both compact and expanded now playing", async () => {
     const user = userEvent.setup();
     const onToggleStar = vi.fn();
@@ -599,6 +643,57 @@ describe("compact player interactions", () => {
 });
 
 describe("state coordination regressions", () => {
+  it("exposes the active view and playback state without replacing the app shell", async () => {
+    const user = userEvent.setup();
+    const controller = connectedController({ starredSongs: [track] });
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    const app = document.querySelector(".app");
+    const shell = document.querySelector(".app-shell");
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+    await user.click(
+      within(screen.getByRole("main")).getByRole("button", { name: "Play Blue Hour" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Search" }));
+
+    expect(document.querySelector(".app")).toBe(app);
+    expect(document.querySelector(".app-shell")).toBe(shell);
+    expect(app).toHaveAttribute("data-layout", "workstation");
+    expect(app).toHaveAttribute("data-transition", "refract");
+    expect(app).toHaveAttribute("data-view", "search");
+    expect(app).toHaveAttribute("data-playing", "false");
+    expect(app).toHaveAttribute("data-has-track", "true");
+    expect(document.querySelectorAll(".theme-burst")).toHaveLength(1);
+  });
+
+  it("increments the burst sequence only when the resolved personality changes", async () => {
+    const user = userEvent.setup();
+    const circuitOne = { ...track, id: "cyber-1", title: "Circuit One", genre: "Electronic" };
+    const circuitTwo = { ...track, id: "cyber-2", title: "Circuit Two", genre: "Techno" };
+    const riot = { ...track, id: "rock-1", title: "Riot Signal", genre: "Rock" };
+    const controller = connectedController({
+      starredSongs: [circuitOne, circuitTwo, riot],
+    });
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    expect(document.querySelector(".theme-burst")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+
+    const main = within(screen.getByRole("main"));
+    await user.click(main.getByRole("button", { name: "Play Circuit One" }));
+    expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "1");
+
+    await user.click(main.getByRole("button", { name: "Play Circuit Two" }));
+    expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "1");
+
+    await user.click(main.getByRole("button", { name: "Play Riot Signal" }));
+    expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "2");
+  });
+
   it("wires the current queue track through mutation-aware favorite state", async () => {
     const user = userEvent.setup();
     const staleQueueTrack = {
