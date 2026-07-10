@@ -103,7 +103,8 @@ describe("visual personality engine", () => {
     expect(new Set(themes.map(({ scene }) => scene.layout)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.transition)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.asset)).size).toBe(7);
-    expect(new Set(themes.map(({ scene }) => `${scene.displayFont}|${scene.bodyFont}`)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => scene.displayFont)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => scene.bodyFont)).size).toBe(7);
     for (const theme of themes) {
       expect(theme.scene.asset).toMatch(/^\/assets\/themes\//);
       expect(theme.scene.displayFont).not.toHaveLength(0);
@@ -123,6 +124,24 @@ describe("visual personality engine", () => {
       "--theme-burst-duration": `${theme.motionDuration}ms`,
     });
   });
+
+  it.each([
+    ["Pop", "cover", "cover", "center"],
+    ["Electronic", "tile", "512px 512px", "top left"],
+    ["Chiptune", "pixel", "256px 256px", "top left"],
+  ])(
+    "maps %s %s art to size %s and position %s",
+    (genre, expectedMode, expectedSize, expectedPosition) => {
+      const theme = resolveThemeForTrack(track(genre, { genre }));
+      const variables = themeToCssVars(theme);
+
+      expect(theme.scene.assetMode).toBe(expectedMode);
+      expect(variables).toMatchObject({
+        "--theme-art-size": expectedSize,
+        "--theme-art-position": expectedPosition,
+      });
+    },
+  );
 
   it("converts every personality dimension into stable CSS variables", () => {
     const theme = resolveThemeForTrack(track("grid", { genre: "Synthwave" }));

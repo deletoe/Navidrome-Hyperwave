@@ -53,13 +53,15 @@ export default function App() {
   const pendingPlay = useRef(false);
   const [playRequest, setPlayRequest] = useState(0);
   const theme = resolveThemeForTrack(currentTrack);
-  const previousThemeId = useRef(theme.id);
-  const themeSequence = useRef(0);
-  if (previousThemeId.current !== theme.id) {
-    previousThemeId.current = theme.id;
-    themeSequence.current += 1;
-  }
+  const committedThemeId = useRef(theme.id);
+  const [themeSequence, setThemeSequence] = useState(0);
   const toastMessage = navidrome.mutationError || player.error || notice;
+
+  useEffect(() => {
+    if (committedThemeId.current === theme.id) return;
+    committedThemeId.current = theme.id;
+    setThemeSequence((sequence) => sequence + 1);
+  }, [theme.id]);
 
   useEffect(() => {
     setToastVisible(Boolean(toastMessage));
@@ -313,10 +315,10 @@ export default function App() {
       style={themeToCssVars(theme)}
     >
       <ThemeBurst
-        key={`${theme.id}-${themeSequence.current}`}
+        key={theme.id}
         theme={theme}
         active={Boolean(currentTrack)}
-        sequence={themeSequence.current}
+        sequence={themeSequence}
       />
       <div className="ambient-layer" aria-hidden="true" />
       <a className="skip-link" href="#main-content">

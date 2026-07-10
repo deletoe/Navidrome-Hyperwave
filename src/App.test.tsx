@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState, type Dispatch } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -692,6 +692,45 @@ describe("state coordination regressions", () => {
 
     await user.click(main.getByRole("button", { name: "Play Riot Signal" }));
     expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "2");
+  });
+
+  it("preserves the shell, player, audio, and focus across a Cyber to Rock transition", async () => {
+    const user = userEvent.setup();
+    const cyber = { ...track, id: "cyber-stable", title: "Night Circuit", genre: "Electronic" };
+    const rock = { ...track, id: "rock-stable", title: "Live Wire", genre: "Rock" };
+    const controller = connectedController({ starredSongs: [cyber, rock] });
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+    const main = within(screen.getByRole("main"));
+    await user.click(main.getByRole("button", { name: "Play Night Circuit" }));
+
+    const app = document.querySelector<HTMLElement>(".app")!;
+    const shell = document.querySelector<HTMLElement>(".app-shell")!;
+    const playerDock = document.querySelector<HTMLElement>(".player-dock")!;
+    const audio = playerDock.querySelector<HTMLAudioElement>("audio")!;
+    const focusedControl = within(playerDock).getByRole("button", {
+      name: "Open playback queue",
+    });
+    const oldBurst = document.querySelector<HTMLElement>(".theme-burst")!;
+    focusedControl.focus();
+    expect(focusedControl).toHaveFocus();
+    expect(app).toHaveAttribute("data-theme", "cyber");
+
+    fireEvent.click(main.getByRole("button", { name: "Play Live Wire" }));
+    await waitFor(() => expect(app).toHaveAttribute("data-theme", "rock"));
+
+    const newBurst = document.querySelector<HTMLElement>(".theme-burst")!;
+    expect(document.querySelector(".app")).toBe(app);
+    expect(document.querySelector(".app-shell")).toBe(shell);
+    expect(document.querySelector(".player-dock")).toBe(playerDock);
+    expect(playerDock.querySelector("audio")).toBe(audio);
+    expect(focusedControl).toHaveFocus();
+    expect(document.querySelectorAll(".theme-burst")).toHaveLength(1);
+    expect(newBurst).not.toBe(oldBurst);
+    expect(oldBurst).not.toBeInTheDocument();
   });
 
   it("wires the current queue track through mutation-aware favorite state", async () => {
