@@ -1,8 +1,8 @@
 # Theme artwork provenance
 
-These seven ambient images were generated for My Navidrome with the built-in OpenAI image generator on 2026-07-10. No album cover, artist image, library screenshot, user identity, server address, listening history, or other user data was supplied as a reference.
+These seven ambient images were generated for My Navidrome with the built-in OpenAI image generator on 2026-07-10. The Rock image received one localized brand-mark cleanup edit with the same built-in generator on 2026-07-11. No album cover, artist image, library screenshot, user identity, server address, listening history, or other user data was supplied as a reference.
 
-The untouched generator outputs remain in the local Codex generated-image store under generation `019f4b4e-b90c-7512-a0e5-258261c497f4`. Only normalized delivery assets are committed here.
+The original generator outputs and localized Rock edit remain in the local Codex generated-image store under generation `019f4b4e-b90c-7512-a0e5-258261c497f4`. Only normalized delivery assets are committed here.
 
 ## Prompts
 
@@ -34,9 +34,15 @@ The untouched generator outputs remain in the local Codex generated-image store 
 
 > Create a square 2048 by 2048 original crop-safe late-night listening lounge atmosphere, empty and abstracted: deep black-green room, slow translucent teal smoke, thin brushed-brass arcs and low pools of warm light, refined art-deco geometry kept near the perimeter, calm dark center. No musician, no guest, no bottles, no labels, no signage, no real venue, no text, no letters, no numbers.
 
+## Rock cleanup edit
+
+The first Rock output contained a tiny generated pseudo-wordmark on the bass-drum head. No external reference was added. The built-in editor received this exact instruction, and the edited output is stored as `exec-840c88b1-de3e-45e3-9329-dc52e1032d4d.png`:
+
+> Edit this exact image with the smallest possible localized change. On the bass drum head near the center-right of the stage, remove the tiny white pseudo-wordmark/brand mark near the bottom of the drum head. Replace it with matching plain matte black drum-head texture and natural low-light grain. Preserve the entire stage composition, lighting, drum kit geometry, torn-paper border, tape, colors, crop, and every other detail unchanged. Do not add any text, logo, symbol, signature, watermark, label, people, poster, or branded equipment.
+
 ## Processing
 
-- Prism, Bloom, Rock, Cinematic, and Lounge were center-cropped, converted to sRGB RGB, capped at 1600 px, and exported as metadata-free WebP at quality 82.
+- Prism, Bloom, Rock, Cinematic, and Lounge were center-cropped, converted to sRGB RGB, capped at 1600 px, and exported as metadata-free WebP at quality 82. Rock was normalized again from the cleaned edit.
 - Cyber was center-cropped, wrap-shifted, seam-softened, resized to 1024 px, and exported as metadata-free WebP at quality 82.
 - Pixel was wrap-shifted, reduced to a 32 by 32 logical grid, quantized to 32 colors without dithering, and enlarged with nearest-neighbor sampling to a 256 by 256 indexed PNG.
 - A generated contact sheet was inspected for text, logos, people, recognizable intellectual property, center obstruction, and obvious crop failures before the assets were committed.
