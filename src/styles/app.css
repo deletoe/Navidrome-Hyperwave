@@ -15,8 +15,8 @@
   background: var(--theme-bg);
   color: var(--theme-text);
   transition:
-    color var(--motion-duration) var(--motion-easing),
-    background-color var(--motion-duration) var(--motion-easing);
+    color var(--control-duration) var(--motion-easing),
+    background-color var(--control-duration) var(--motion-easing);
 }
 
 .ambient-layer {
@@ -1041,14 +1041,15 @@ button[aria-pressed="true"] {
 @media (min-width: 1180px) {
   .app-shell {
     display: grid;
-    grid-template-columns: 248px minmax(0, 1fr) 340px;
+    grid-template-columns: var(--wide-navigation) minmax(0, 1fr) var(--wide-queue);
+    grid-template-areas: "navigation content playback";
     height: 100vh;
     height: 100dvh;
     overflow: hidden;
   }
 
   .navigation-rail {
-    grid-column: 1;
+    grid-area: navigation;
     height: 100vh;
     height: 100dvh;
     overflow-y: auto;
@@ -1056,7 +1057,7 @@ button[aria-pressed="true"] {
   }
 
   .content-panel {
-    grid-column: 2;
+    grid-area: content;
     height: 100vh;
     height: 100dvh;
     overflow-y: auto;
@@ -1064,7 +1065,7 @@ button[aria-pressed="true"] {
   }
 
   .playback-rail {
-    grid-column: 3;
+    grid-area: playback;
     height: 100vh;
     height: 100dvh;
     border-left: var(--frame);
@@ -1182,9 +1183,9 @@ button[aria-pressed="true"] {
     pointer-events: none;
     transform: translateX(104%);
     transition:
-      transform var(--motion-duration) var(--motion-easing),
-      opacity var(--motion-duration) var(--motion-easing),
-      visibility 0s linear var(--motion-duration);
+      transform var(--drawer-duration) var(--motion-easing),
+      opacity var(--drawer-duration) var(--motion-easing),
+      visibility 0s linear var(--drawer-duration);
   }
 
   .queue-panel[data-open="true"] {
@@ -1411,9 +1412,9 @@ button[aria-pressed="true"] {
     pointer-events: none;
     transform: translateY(104%);
     transition:
-      transform var(--motion-duration) var(--motion-easing),
-      opacity var(--motion-duration) var(--motion-easing),
-      visibility 0s linear var(--motion-duration);
+      transform var(--drawer-duration) var(--motion-easing),
+      opacity var(--drawer-duration) var(--motion-easing),
+      visibility 0s linear var(--drawer-duration);
   }
 
   .queue-panel[data-open="true"] {
@@ -1681,8 +1682,15 @@ button[aria-pressed="true"] {
   .queue-panel[data-open="true"],
   .player-sheet,
   .mini-player,
-  .mobile-nav,
-  .skip-link {
+  .mobile-nav {
     transform: none !important;
+  }
+
+  .skip-link:not(:focus) {
+    transform: translateY(-180%) !important;
+  }
+
+  .skip-link:focus {
+    transform: translateY(0) !important;
   }
 }
