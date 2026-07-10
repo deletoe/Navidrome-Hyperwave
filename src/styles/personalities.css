@@ -777,19 +777,6 @@
   background: rgba(16, 29, 28, 0.94);
 }
 
-[data-theme="lounge"] .player-dock__artwork,
-[data-theme="lounge"] .player-sheet__artwork {
-  border-radius: 50%;
-  animation: lounge-turntable-spin 18s linear infinite;
-  animation-play-state: paused;
-  will-change: transform;
-}
-
-[data-theme="lounge"][data-playing="true"] .player-dock__artwork,
-[data-theme="lounge"][data-playing="true"] .player-sheet__artwork {
-  animation-play-state: running;
-}
-
 [data-theme="lounge"] .queue-panel {
   border-left: 1px solid var(--theme-primary);
   background: rgba(8, 13, 13, 0.92);
@@ -1183,6 +1170,18 @@
 
   [data-theme="lounge"] .player-dock {
     flex: 0 0 auto;
+  }
+
+  [data-theme="lounge"] .player-dock__artwork,
+  [data-theme="lounge"] .player-sheet__artwork {
+    border-radius: 50%;
+    animation: lounge-turntable-spin 18s linear infinite;
+    animation-play-state: paused;
+  }
+
+  [data-theme="lounge"][data-playing="true"] .player-dock__artwork,
+  [data-theme="lounge"][data-playing="true"] .player-sheet__artwork {
+    animation-play-state: running;
   }
 }
 
