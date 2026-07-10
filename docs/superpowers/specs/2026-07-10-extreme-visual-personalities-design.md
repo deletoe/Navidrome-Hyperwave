@@ -119,6 +119,18 @@ public/assets/themes/lounge-ambient.webp
 
 The five stage images use crop-safe square compositions with a calm center. Cyber is a repeatable coordinate texture. Pixel is processed as a small indexed-color tile. Each asset has a CSS gradient fallback; inactive theme selectors must not force all seven images to download. The target total transfer size is below 2 MB.
 
+### Generation prompts
+
+All prompts are original-asset briefs. No reference image or user-library data is supplied.
+
+- **Prism:** Original abstract ambient background for a personal music archive, a deep navy prismatic vault made of translucent frosted-glass planes, restrained cyan and lavender spectral caustics, sparse dust motes, layered depth, premium editorial lighting, calm low-detail central region, crop-safe square composition, subtle edge continuity, no text, no logos, no UI, no album covers, no records, no people, no recognizable architecture.
+- **Cyber:** Original seamless square electronic-night texture, dark teal coordinate field, sparse cyan circuit paths and magenta signal nodes, shallow perspective hints without a horizon, controlled neon bloom, quiet central passages, exact edge-to-edge wrapping on all four sides, no HUD text, no numbers, no logos, no devices, no city, no people, no recognizable science-fiction franchise.
+- **Bloom:** Original crop-safe square dream-pop ambient background, dusky mauve atmosphere with translucent abstract petal membranes, soft blush light pools, pale mint reflections and creamy bokeh, airy depth, gentle asymmetry, broad calm center for interface readability, no literal bouquet, no portrait, no fashion model, no typography, no logos, no album-cover composition.
+- **Pixel:** Original seamless pixel-art background tile designed on an exact 32 by 32 logical grid, deep violet abstract dungeon-space field, tiny cyan signal stars, muted yellow stepped paths, sparse block clusters, clean one-pixel edges, uniform density, perfect four-edge wrap, no character, no creature, no item, no game logo, no text, no UI frame, no recognizable tiles from any existing game.
+- **Rock:** Original crop-safe square empty underground live stage after soundcheck, charcoal-black room, torn diagonal paper and gaffer-tape textures at the edges, one restrained burnt-orange side light and a muted mustard flare, rough analog grain, energetic asymmetry with a dark readable center, no performers, no audience, no posters, no band logos, no branded instruments or amplifiers, no text.
+- **Cinematic:** Original crop-safe square cinematic scoring-stage atmosphere, empty abstract proscenium in deep graphite darkness, a broad soft overhead spotlight, faint silver haze, restrained antique-gold rim light, elegant negative space, subtle optical falloff, no movie still, no actor, no orchestra, no studio logo, no film title, no text, no recognizable theatre.
+- **Lounge:** Original crop-safe square late-night listening lounge atmosphere, empty and abstracted, deep black-green room, slow translucent teal smoke, thin brushed-brass arcs and low pools of warm light, refined art-deco geometry kept near the perimeter, calm dark center, no musician, no guest, no bottles, no labels, no signage, no real venue, no text.
+
 ## 6. Transition Architecture
 
 The application tree is never keyed by theme:
