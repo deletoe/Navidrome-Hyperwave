@@ -1,5 +1,5 @@
-import { render } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { resolveThemeForTrack } from "../lib/themeEngine";
 import { ThemeBurst } from "./ThemeBurst";
@@ -32,5 +32,25 @@ describe("ThemeBurst", () => {
     );
 
     expect(container.querySelector(".theme-burst")).toBeNull();
+  });
+
+  it("removes the decorative stage after its theme motion completes", () => {
+    vi.useFakeTimers();
+    try {
+      const theme = resolveThemeForTrack({
+        id: "cinema",
+        title: "Closing credits",
+        genre: "Classical",
+      });
+      const { container } = render(
+        <ThemeBurst theme={theme} active sequence={4} />,
+      );
+
+      expect(container.querySelector(".theme-burst")).not.toBeNull();
+      act(() => vi.advanceTimersByTime(theme.motionDuration + 80));
+      expect(container.querySelector(".theme-burst")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
