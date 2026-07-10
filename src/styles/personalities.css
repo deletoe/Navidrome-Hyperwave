@@ -951,6 +951,7 @@
 
   [data-theme="bloom"] .player-dock,
   [data-theme="cinematic"] .player-dock {
+    position: relative;
     grid-template-columns: minmax(8rem, 0.4fr) minmax(16rem, 1fr) minmax(14rem, 0.7fr);
     grid-template-areas:
       "heading track controls"
@@ -994,6 +995,21 @@
     height: 1.75rem;
     min-height: 1.75rem;
     padding-block: 0;
+  }
+
+  [data-theme="bloom"] .player-error,
+  [data-theme="cinematic"] .player-error,
+  [data-theme="rock"] .player-error {
+    position: absolute;
+    z-index: 3;
+    right: auto;
+    bottom: 1rem;
+    left: 1rem;
+    width: min(23rem, calc(100% - 2rem));
+    max-height: calc(100% - 2rem);
+    overflow-y: auto;
+    background: color-mix(in srgb, var(--theme-surface-strong) 96%, var(--theme-bg));
+    box-shadow: 0 0.8rem 2.4rem color-mix(in srgb, var(--theme-bg) 72%, transparent);
   }
 
   [data-theme="bloom"] .queue-panel,
@@ -1056,6 +1072,7 @@
   }
 
   [data-theme="rock"] .player-dock {
+    position: relative;
     grid-template-columns: minmax(8rem, 0.45fr) minmax(0, 1fr);
     grid-template-areas:
       "heading track"
