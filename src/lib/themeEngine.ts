@@ -23,6 +23,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "soft",
     texture: "prismatic haze",
     motionDuration: 520,
+    scene: {
+      layout: "workstation",
+      transition: "refract",
+      asset: "/assets/themes/prism-ambient.webp",
+      assetMode: "cover",
+      displayFont: '"Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif',
+      bodyFont: 'Inter, ui-sans-serif, system-ui, sans-serif',
+    },
   },
   cyber: {
     id: "cyber",
@@ -44,6 +52,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "line",
     texture: "neon coordinate grid",
     motionDuration: 280,
+    scene: {
+      layout: "console",
+      transition: "scan",
+      asset: "/assets/themes/cyber-ambient.webp",
+      assetMode: "tile",
+      displayFont: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
+      bodyFont: 'Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+    },
   },
   bloom: {
     id: "bloom",
@@ -65,6 +81,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "soft",
     texture: "floating petal glass",
     motionDuration: 720,
+    scene: {
+      layout: "garden",
+      transition: "bloom",
+      asset: "/assets/themes/bloom-ambient.webp",
+      assetMode: "cover",
+      displayFont: 'ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif',
+      bodyFont: '"Avenir Next", "Segoe UI", ui-sans-serif, system-ui, sans-serif',
+    },
   },
   pixel: {
     id: "pixel",
@@ -86,6 +110,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "hard",
     texture: "pixel scanline blocks",
     motionDuration: 160,
+    scene: {
+      layout: "quest",
+      transition: "blocks",
+      asset: "/assets/themes/pixel-ambient.png",
+      assetMode: "pixel",
+      displayFont: '"Courier New", "SFMono-Regular", monospace',
+      bodyFont: '"SFMono-Regular", Menlo, Consolas, monospace',
+    },
   },
   rock: {
     id: "rock",
@@ -107,6 +139,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "cut",
     texture: "torn diagonal stage tape",
     motionDuration: 220,
+    scene: {
+      layout: "zine",
+      transition: "tear",
+      asset: "/assets/themes/rock-ambient.webp",
+      assetMode: "cover",
+      displayFont: '"Avenir Next Condensed", "Arial Narrow", Impact, sans-serif',
+      bodyFont: 'Inter, "Helvetica Neue", Arial, sans-serif',
+    },
   },
   cinematic: {
     id: "cinematic",
@@ -128,6 +168,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "editorial",
     texture: "film grain spotlight",
     motionDuration: 900,
+    scene: {
+      layout: "screening",
+      transition: "curtain",
+      asset: "/assets/themes/cinematic-ambient.webp",
+      assetMode: "cover",
+      displayFont: '"Iowan Old Style", Baskerville, "Times New Roman", serif',
+      bodyFont: 'Optima, Candara, "Noto Sans", sans-serif',
+    },
   },
   lounge: {
     id: "lounge",
@@ -149,6 +197,14 @@ const THEMES: Record<ThemeId, VisualTheme> = {
     frameStyle: "line",
     texture: "brass line and slow smoke",
     motionDuration: 1100,
+    scene: {
+      layout: "club",
+      transition: "smoke",
+      asset: "/assets/themes/lounge-ambient.webp",
+      assetMode: "cover",
+      displayFont: 'Didot, "Bodoni 72", "Times New Roman", serif',
+      bodyFont: 'Gill Sans, Optima, Candara, sans-serif',
+    },
   },
 };
 
@@ -204,11 +260,19 @@ export function resolveThemeForTrack(track?: Track): VisualTheme {
 type ThemeCssProperties = CSSProperties & Record<`--${string}`, string>;
 
 export function themeToCssVars(theme: VisualTheme): ThemeCssProperties {
-  const fonts: Record<VisualTheme["fontFamily"], string> = {
-    sans: 'Inter, ui-sans-serif, system-ui, sans-serif',
-    mono: '"SFMono-Regular", Consolas, "Liberation Mono", monospace',
-    serif: 'Iowan Old Style, Baskerville, "Times New Roman", serif',
-    rounded: 'ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif',
+  const artSize: Record<VisualTheme["scene"]["assetMode"], string> = {
+    cover: "cover",
+    tile: "512px 512px",
+    pixel: "256px 256px",
+  };
+  const artPosition: Record<VisualTheme["scene"]["layout"], string> = {
+    workstation: "center",
+    console: "top left",
+    garden: "center",
+    quest: "top left",
+    zine: "center",
+    screening: "center top",
+    club: "center",
   };
   return {
     "--theme-bg": theme.colors.background,
@@ -219,11 +283,18 @@ export function themeToCssVars(theme: VisualTheme): ThemeCssProperties {
     "--theme-text": theme.colors.text,
     "--theme-muted": theme.colors.muted,
     "--theme-border": theme.colors.border,
-    "--display-font": fonts[theme.fontFamily],
+    "--theme-art": `url("${theme.scene.asset}")`,
+    "--theme-art-size": artSize[theme.scene.assetMode],
+    "--theme-art-position": artPosition[theme.scene.layout],
+    "--display-font": theme.scene.displayFont,
+    "--body-font": theme.scene.bodyFont,
     "--card-radius": theme.radius,
     "--density": theme.density,
     "--frame-style": theme.frameStyle,
     "--texture": theme.texture,
     "--motion-duration": `${theme.motionDuration}ms`,
+    "--control-duration": "150ms",
+    "--drawer-duration": "280ms",
+    "--theme-burst-duration": `${theme.motionDuration}ms`,
   };
 }

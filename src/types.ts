@@ -100,6 +100,15 @@ export interface VisualThemeColors {
   border: string;
 }
 
+export interface VisualThemeScene {
+  layout: "workstation" | "console" | "garden" | "quest" | "zine" | "screening" | "club";
+  transition: "refract" | "scan" | "bloom" | "blocks" | "tear" | "curtain" | "smoke";
+  asset: string;
+  assetMode: "cover" | "tile" | "pixel";
+  displayFont: string;
+  bodyFont: string;
+}
+
 export interface VisualTheme {
   id: ThemeId;
   name: string;
@@ -111,4 +120,5 @@ export interface VisualTheme {
   frameStyle: "soft" | "line" | "cut" | "hard" | "editorial";
   texture: string;
   motionDuration: number;
+  scene: VisualThemeScene;
 }

@@ -88,6 +88,42 @@ describe("visual personality engine", () => {
     }
   });
 
+  it("defines a unique stage contract for every personality", () => {
+    const fixtures = [
+      track("prism"),
+      track("cyber", { genre: "Techno" }),
+      track("bloom", { genre: "Pop" }),
+      track("pixel", { genre: "Chiptune" }),
+      track("rock", { genre: "Metal" }),
+      track("cinematic", { genre: "Classical" }),
+      track("lounge", { genre: "Soul" }),
+    ];
+    const themes = fixtures.map(resolveThemeForTrack);
+
+    expect(new Set(themes.map(({ scene }) => scene.layout)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => scene.transition)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => scene.asset)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => `${scene.displayFont}|${scene.bodyFont}`)).size).toBe(7);
+    for (const theme of themes) {
+      expect(theme.scene.asset).toMatch(/^\/assets\/themes\//);
+      expect(theme.scene.displayFont).not.toHaveLength(0);
+      expect(theme.scene.bodyFont).not.toHaveLength(0);
+    }
+  });
+
+  it("exports scene art and separated motion variables", () => {
+    const theme = resolveThemeForTrack(track("stage", { genre: "Electronic" }));
+
+    expect(themeToCssVars(theme)).toMatchObject({
+      "--theme-art": `url("${theme.scene.asset}")`,
+      "--display-font": theme.scene.displayFont,
+      "--body-font": theme.scene.bodyFont,
+      "--control-duration": "150ms",
+      "--drawer-duration": "280ms",
+      "--theme-burst-duration": `${theme.motionDuration}ms`,
+    });
+  });
+
   it("converts every personality dimension into stable CSS variables", () => {
     const theme = resolveThemeForTrack(track("grid", { genre: "Synthwave" }));
 
