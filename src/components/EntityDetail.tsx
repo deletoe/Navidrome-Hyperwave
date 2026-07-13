@@ -2,6 +2,7 @@ import { formatCount, formatDuration } from "../lib/format";
 import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
+import { ArtistLinks } from "./ArtistLinks";
 import { Artwork } from "./Artwork";
 import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
@@ -12,6 +13,9 @@ export interface EntityDetailProps {
   kind: DetailKind;
   album?: Album;
   artist?: Artist;
+  artistTracks: Track[];
+  artistTracksLoading: boolean;
+  artistTracksWarning?: string;
   genre?: string;
   genreTracks: Track[];
   loading: boolean;
@@ -24,6 +28,7 @@ export interface EntityDetailProps {
   onBack: () => void;
   onRetry: () => void;
   onOpenAlbum: (album: Album) => void;
+  onOpenArtist: (artist: Artist) => void;
   onPlay: (track: Track, index: number, tracks: Track[]) => void;
   onAddToQueue: (track: Track) => void;
   onToggleStar: (track: Track) => void;
@@ -35,6 +40,9 @@ export function EntityDetail({
   kind,
   album,
   artist,
+  artistTracks,
+  artistTracksLoading,
+  artistTracksWarning,
   genre,
   genreTracks,
   loading,
@@ -47,6 +55,7 @@ export function EntityDetail({
   onBack,
   onRetry,
   onOpenAlbum,
+  onOpenArtist,
   onPlay,
   onAddToQueue,
   onToggleStar,
@@ -54,6 +63,7 @@ export function EntityDetail({
   onAddCollection,
 }: EntityDetailProps) {
   const albumTracks = album?.song ?? [];
+  const artistAlbumCount = artist?.albumCount ?? artist?.album?.length ?? 0;
   const missing =
     !loading &&
     !error &&
@@ -121,7 +131,9 @@ export function EntityDetail({
             <div>
               <p className="eyebrow">Album detail</p>
               <h1>{album.name}</h1>
-              <p>{album.displayArtist || album.artist || "Unknown artist"}</p>
+              <p>
+                <ArtistLinks entity={album} onOpenArtist={onOpenArtist} />
+              </p>
               <p>
                 {album.year ? `${album.year} · ` : ""}
                 {formatCount(album.songCount ?? albumTracks.length)} tracks
@@ -160,6 +172,7 @@ export function EntityDetail({
             onPlay={onPlay}
             onAddToQueue={onAddToQueue}
             onToggleStar={onToggleStar}
+            onOpenArtist={onOpenArtist}
           />
         </>
       ) : null}
@@ -180,10 +193,35 @@ export function EntityDetail({
                 eager
               />
             </div>
-            <div>
+            <div className="entity-hero__copy">
               <p className="eyebrow">Artist detail</p>
               <h1>{artist.name}</h1>
-              <p>{formatCount(artist.albumCount ?? artist.album?.length)} albums in this archive.</p>
+              <p>
+                {formatCount(artistAlbumCount)} {artistAlbumCount === 1 ? "album" : "albums"}
+                {artistTracksLoading
+                  ? " · collecting every song…"
+                  : ` · ${formatCount(artistTracks.length)} ${artistTracks.length === 1 ? "song" : "songs"}`}
+              </p>
+              <div className="collection-actions">
+                <button
+                  className="button-with-icon"
+                  type="button"
+                  onClick={() => onPlayCollection(artistTracks)}
+                  disabled={artistTracks.length === 0}
+                >
+                  <AppIcon name="playCircle" />
+                  {artistTracksLoading ? "Play loaded songs" : "Play all songs"}
+                </button>
+                <button
+                  className="button-with-icon"
+                  type="button"
+                  onClick={() => onAddCollection(artistTracks)}
+                  disabled={artistTracks.length === 0}
+                >
+                  <AppIcon name="queueAdd" />
+                  {artistTracksLoading ? "Add loaded to queue" : "Add all to queue"}
+                </button>
+              </div>
             </div>
           </header>
           <AlbumShelf
@@ -193,6 +231,21 @@ export function EntityDetail({
             onOpenAlbum={onOpenAlbum}
             emptyMessage="No albums were returned for this artist."
             onRetry={onRetry}
+          />
+          <TrackList
+            title={`All ${artist.name} songs`}
+            tracks={artistTracks}
+            starredIds={starredIds}
+            currentTrackId={currentTrackId}
+            coverUrl={coverUrl}
+            loading={artistTracksLoading}
+            error={artistTracksWarning}
+            emptyMessage="No songs were returned from this artist's albums."
+            onRetry={onRetry}
+            onPlay={onPlay}
+            onAddToQueue={onAddToQueue}
+            onToggleStar={onToggleStar}
+            onOpenArtist={onOpenArtist}
           />
         </>
       ) : null}
@@ -241,6 +294,7 @@ export function EntityDetail({
             onPlay={onPlay}
             onAddToQueue={onAddToQueue}
             onToggleStar={onToggleStar}
+            onOpenArtist={onOpenArtist}
           />
         </>
       ) : null}

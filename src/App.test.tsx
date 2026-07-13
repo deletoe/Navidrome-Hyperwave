@@ -21,6 +21,7 @@ const track: Track = {
   id: "track-1",
   title: "Blue Hour",
   artist: "Signal Club",
+  artistId: "artist-1",
   album: "Night Signals",
   duration: 245,
 };
@@ -29,6 +30,7 @@ const album: Album = {
   id: "album-1",
   name: "Night Signals",
   artist: "Signal Club",
+  artistId: "artist-1",
   songCount: 8,
 };
 
@@ -94,6 +96,9 @@ function connectedController(
       warnings: {},
       loading: false,
     },
+    artistDirectory: undefined,
+    artistsLoading: false,
+    artistsError: undefined,
     starredSongs: [],
     starredAlbums: [],
     starredArtists: [],
@@ -105,6 +110,9 @@ function connectedController(
     searchError: undefined,
     activeAlbum: undefined,
     activeArtist: undefined,
+    activeArtistTracks: [],
+    artistTracksLoading: false,
+    artistTracksWarning: undefined,
     activeGenre: undefined,
     genreTracks: [],
     detailLoading: false,
@@ -113,6 +121,7 @@ function connectedController(
     connect: vi.fn(async () => undefined),
     disconnect: vi.fn(),
     refreshHome: vi.fn(async () => undefined),
+    loadArtists: vi.fn(async () => undefined),
     retryHomeSection: vi.fn(async () => undefined),
     search: vi.fn(async () => undefined),
     openAlbum: vi.fn(async () => undefined),
@@ -202,6 +211,56 @@ describe("accessible collection actions", () => {
     expect(onPlay).toHaveBeenCalledWith(track, 0, [track]);
     expect(onAddToQueue).toHaveBeenCalledWith(track);
     expect(onToggleStar).toHaveBeenCalledWith(track);
+  });
+
+  it("uses the reconciled favorite set instead of a stale track flag", () => {
+    const staleTrack = { ...track, starred: "2026-07-13T00:00:00.000Z" };
+    const { rerender } = render(
+      <TrackList
+        title="Songs"
+        tracks={[staleTrack]}
+        starredIds={new Set()}
+        onPlay={vi.fn()}
+        onAddToQueue={vi.fn()}
+        onToggleStar={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Star Blue Hour" })).toBeInTheDocument();
+    rerender(
+      <TrackList
+        title="Songs"
+        tracks={[staleTrack]}
+        starredIds={new Set([staleTrack.id])}
+        onPlay={vi.fn()}
+        onAddToQueue={vi.fn()}
+        onToggleStar={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Unstar Blue Hour" })).toBeInTheDocument();
+  });
+
+  it("opens an identified artist from a track without triggering playback", async () => {
+    const user = userEvent.setup();
+    const onOpenArtist = vi.fn();
+    const onPlay = vi.fn();
+
+    render(
+      <TrackList
+        title="Songs"
+        tracks={[track]}
+        starredIds={new Set()}
+        onPlay={onPlay}
+        onAddToQueue={vi.fn()}
+        onToggleStar={vi.fn()}
+        onOpenArtist={onOpenArtist}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+
+    expect(onOpenArtist).toHaveBeenCalledWith({ id: "artist-1", name: "Signal Club" });
+    expect(onPlay).not.toHaveBeenCalled();
   });
 
   it("opens album, artist, and genre details from real buttons", async () => {
@@ -396,6 +455,29 @@ describe("compact player interactions", () => {
     await user.click(expandedFavorite);
 
     expect(onToggleStar).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the current artist from full now playing and closes the sheet", async () => {
+    const user = userEvent.setup();
+    const onOpenArtist = vi.fn();
+
+    render(
+      <PlayerDock
+        currentTrack={track}
+        player={playerController()}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        onOpenArtist={onOpenArtist}
+        onToggleQueue={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open now playing" }));
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+
+    expect(onOpenArtist).toHaveBeenCalledWith({ id: "artist-1", name: "Signal Club" });
+    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
   });
 
   it("expands now playing, reports queue expansion, and closes on Escape", async () => {
@@ -666,6 +748,129 @@ describe("compact player interactions", () => {
 });
 
 describe("state coordination regressions", () => {
+  it("loads the complete artist index on demand from primary navigation", async () => {
+    const user = userEvent.setup();
+    const controller = connectedController();
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Artists" }));
+
+    expect(controller.loadArtists).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Artists" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(document.querySelector(".app")).toHaveAttribute("data-view", "artists");
+  });
+
+  it("opens one artist with every album and aggregated song collection", async () => {
+    const user = userEvent.setup();
+    const artistWithAlbums: Artist = { ...artist, album: [album] };
+    const controller = connectedController({
+      artistDirectory: {
+        ignoredArticles: "The An A",
+        index: [{ name: "S", artist: [artist] }],
+      },
+    });
+    controller.openArtist = vi.fn(async () => {
+      controller.activeArtist = artistWithAlbums;
+      controller.activeArtistTracks = [track];
+      controller.activeAlbum = undefined;
+      controller.activeGenre = undefined;
+    });
+    vi.spyOn(navidromeModule, "useNavidrome").mockImplementation(() => controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Artists" }));
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+
+    expect(await screen.findByRole("heading", { name: "Signal Club", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Signal Club albums" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "All Signal Club songs" })).toBeInTheDocument();
+    expect(screen.getByText("2 albums · 1 song")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Play all songs" }));
+    expect(screen.getByRole("button", { name: "Play Blue Hour from queue" })).toBeInTheDocument();
+  });
+
+  it("preserves the artist filter through detail navigation and focuses the new main view", async () => {
+    const user = userEvent.setup();
+    const artistWithAlbums: Artist = { ...artist, album: [album] };
+    const controller = connectedController({
+      artistDirectory: { index: [{ name: "S", artist: [artist] }] },
+    });
+    controller.openArtist = vi.fn(async () => {
+      controller.activeArtist = artistWithAlbums;
+      controller.activeArtistTracks = [track];
+    });
+    controller.clearDetail = vi.fn(() => {
+      controller.activeArtist = undefined;
+      controller.activeArtistTracks = [];
+    });
+    vi.spyOn(navidromeModule, "useNavidrome").mockImplementation(() => controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Artists" }));
+    const filter = screen.getByRole("searchbox", { name: "Filter artists" });
+    await user.type(filter, "signal");
+    const main = document.getElementById("main-content") as HTMLElement;
+    main.scrollTop = 320;
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+
+    expect(await screen.findByRole("heading", { name: "Signal Club", level: 1 })).toBeInTheDocument();
+    expect(main).toHaveFocus();
+    expect(main.scrollTop).toBe(0);
+    await user.click(screen.getByRole("button", { name: "Back to previous view" }));
+    expect(screen.getByRole("searchbox", { name: "Filter artists" })).toHaveValue("signal");
+    expect(main.scrollTop).toBe(320);
+  });
+
+  it("does not add a duplicate history entry when the current artist is opened again", async () => {
+    const user = userEvent.setup();
+    const artistWithAlbums: Artist = { ...artist, album: [album] };
+    const controller = connectedController({
+      artistDirectory: { index: [{ name: "S", artist: [artist] }] },
+    });
+    controller.openArtist = vi.fn(async () => {
+      controller.activeArtist = artistWithAlbums;
+      controller.activeArtistTracks = [track];
+    });
+    vi.spyOn(navidromeModule, "useNavidrome").mockImplementation(() => controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Artists" }));
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+    await screen.findByRole("heading", { name: "All Signal Club songs" });
+    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
+
+    expect(controller.openArtist).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("button", { name: "Back to previous view" }));
+    expect(screen.getByRole("searchbox", { name: "Filter artists" })).toBeInTheDocument();
+  });
+
+  it("forces a fresh album request when retrying a detail", async () => {
+    const user = userEvent.setup();
+    const controller = connectedController({
+      starredAlbums: [album],
+      detailError: "The cached album is incomplete",
+    });
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+    await user.click(screen.getByRole("button", { name: "Open album Night Signals" }));
+    await user.click(screen.getByRole("button", { name: "Retry details" }));
+
+    expect(controller.openAlbum).toHaveBeenNthCalledWith(1, "album-1");
+    expect(controller.openAlbum).toHaveBeenNthCalledWith(2, "album-1", true);
+  });
+
   it("connects Studio preferences without remounting the visualizer stage", async () => {
     const user = userEvent.setup();
     const electronic = {

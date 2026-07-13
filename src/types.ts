@@ -67,6 +67,16 @@ export interface Artist {
   album?: Album[];
 }
 
+export interface ArtistIndex {
+  name: string;
+  artist: Artist[];
+}
+
+export interface ArtistDirectory {
+  ignoredArticles?: string;
+  index: ArtistIndex[];
+}
+
 export interface SearchResult {
   song: Track[];
   album: Album[];

@@ -4,7 +4,7 @@ import { formatCount } from "../lib/format";
 import type { Album, Artist, SearchResult, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
-import { Artwork } from "./Artwork";
+import { ArtistShelf } from "./ArtistShelf";
 import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
 
@@ -154,6 +154,7 @@ export function SearchView({
               onPlay={onPlay}
               onAddToQueue={onAddToQueue}
               onToggleStar={onToggleStar}
+              onOpenArtist={onOpenArtist}
             />
           ) : null}
           {result.album.length > 0 ? (
@@ -165,32 +166,13 @@ export function SearchView({
             />
           ) : null}
           {result.artist.length > 0 ? (
-            <section className="artist-results" aria-labelledby="artist-results-heading">
-              <header className="section-heading">
-                <div>
-                  <p className="eyebrow">People and projects</p>
-                  <h2 id="artist-results-heading">Artists</h2>
-                </div>
-              </header>
-              <ul className="artist-grid">
-                {result.artist.map((artist) => (
-                  <li key={artist.id}>
-                    <button
-                      type="button"
-                      aria-label={`Open artist ${artist.name}`}
-                      onClick={() => onOpenArtist(artist)}
-                    >
-                      <Artwork
-                        src={coverUrl(artist.coverArt, 320)}
-                        alt={`${artist.name} artwork`}
-                      />
-                      <strong>{artist.name}</strong>
-                      <span>{formatCount(artist.albumCount)} albums</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <ArtistShelf
+              title="Artists"
+              eyebrow="People and projects"
+              artists={result.artist}
+              coverUrl={coverUrl}
+              onOpenArtist={onOpenArtist}
+            />
           ) : null}
         </div>
       ) : null}

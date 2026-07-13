@@ -421,6 +421,7 @@ function navidromeClient(
     ping: vi.fn(async () => ({ status: "ok" as const, version: "1.16.1", openSubsonic: true })),
     getAlbumList2: vi.fn(async () => []),
     getAlbum: vi.fn(async (id) => ({ id, name: "Album", song: [] })),
+    getArtists: vi.fn(async () => ({ index: [] })),
     getArtist: vi.fn(async (id) => ({ id, name: "Artist", album: [] })),
     getGenres: vi.fn(async () => []),
     getSongsByGenre: vi.fn(async () => []),

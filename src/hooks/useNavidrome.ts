@@ -9,6 +9,7 @@ import {
 import type {
   Album,
   Artist,
+  ArtistDirectory,
   AuthConfig,
   Genre,
   SearchResult,
@@ -46,6 +47,93 @@ const EMPTY_HOME: HomeState = {
   loading: false,
   loadingSections: {},
 };
+
+const ARTIST_ALBUM_CONCURRENCY = 5;
+const ALBUM_REQUEST_TIMEOUT_MS = 15_000;
+const ARTIST_REQUEST_TIMEOUT_MS = 15_000;
+const STALE_DETAIL_REQUEST = new Error("Detail request is no longer active");
+
+function withAbortableTimeout<T>(
+  task: (signal: AbortSignal) => Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string,
+  parentSignal?: AbortSignal,
+): Promise<T> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const abortFromParent = () => controller.abort(parentSignal?.reason ?? STALE_DETAIL_REQUEST);
+  if (parentSignal?.aborted) abortFromParent();
+  else parentSignal?.addEventListener("abort", abortFromParent, { once: true });
+
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    controller.abort(new DOMException(timeoutMessage, "TimeoutError"));
+  }, timeoutMs);
+
+  return new Promise<T>((resolve, reject) => {
+    const rejectForAbort = () => {
+      reject(timedOut ? new Error(timeoutMessage) : STALE_DETAIL_REQUEST);
+    };
+    controller.signal.addEventListener("abort", rejectForAbort, { once: true });
+    if (controller.signal.aborted) rejectForAbort();
+
+    Promise.resolve()
+      .then(() => {
+        if (controller.signal.aborted) throw controller.signal.reason;
+        return task(controller.signal);
+      })
+      .then(resolve, reject);
+  }).finally(() => {
+    clearTimeout(timeout);
+    parentSignal?.removeEventListener("abort", abortFromParent);
+  });
+}
+
+function collectArtistTracks(
+  results: readonly (PromiseSettledResult<Album> | undefined)[],
+): Track[] {
+  const seenTrackIds = new Set<string>();
+  const tracks: Track[] = [];
+  results.forEach((result) => {
+    if (!result || result.status === "rejected") return;
+    (result.value.song ?? []).forEach((track) => {
+      if (seenTrackIds.has(track.id)) return;
+      seenTrackIds.add(track.id);
+      tracks.push(track);
+    });
+  });
+  return tracks;
+}
+
+async function settleWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  task: (item: T, index: number) => Promise<R>,
+  onSettled?: (result: PromiseSettledResult<R>, index: number) => void,
+): Promise<PromiseSettledResult<R>[]> {
+  if (items.length === 0) return [];
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      let result: PromiseSettledResult<R>;
+      try {
+        result = { status: "fulfilled", value: await task(items[index]!, index) };
+      } catch (reason) {
+        result = { status: "rejected", reason };
+      }
+      results[index] = result;
+      onSettled?.(result, index);
+    }
+  }
+
+  const workerCount = Math.min(items.length, Math.max(1, concurrency));
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
+}
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : "The request could not be completed";
@@ -92,8 +180,11 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const connectionGeneration = useRef(0);
   const searchGeneration = useRef(0);
   const detailGeneration = useRef(0);
+  const artistDirectoryGeneration = useRef(0);
+  const detailAbortController = useRef<AbortController | undefined>(undefined);
+  const artistDirectoryAbortController = useRef<AbortController | undefined>(undefined);
+  const albumCache = useRef(new Map<string, Album>());
   const favoriteVersions = useRef(new Map<string, number>());
-  const mutatedFavoriteIds = useRef(new Set<string>());
   const favoriteRefreshGeneration = useRef(0);
   const favoriteWriteSequence = useRef(0);
   const pendingFavoriteWrites = useRef(new Set<number>());
@@ -104,6 +195,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string>();
   const [home, setHome] = useState<HomeState>(EMPTY_HOME);
+  const [artistDirectory, setArtistDirectory] = useState<ArtistDirectory>();
+  const [artistsLoading, setArtistsLoading] = useState(false);
+  const [artistsError, setArtistsError] = useState<string>();
   const [starredSongs, setStarredSongs] = useState<Track[]>([]);
   const [starredAlbums, setStarredAlbums] = useState<Album[]>([]);
   const [starredArtists, setStarredArtists] = useState<Artist[]>([]);
@@ -113,6 +207,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const [searchError, setSearchError] = useState<string>();
   const [activeAlbum, setActiveAlbum] = useState<Album>();
   const [activeArtist, setActiveArtist] = useState<Artist>();
+  const [activeArtistTracks, setActiveArtistTracks] = useState<Track[]>([]);
+  const [artistTracksLoading, setArtistTracksLoading] = useState(false);
+  const [artistTracksWarning, setArtistTracksWarning] = useState<string>();
   const [activeGenre, setActiveGenre] = useState<string>();
   const [genreTracks, setGenreTracks] = useState<Track[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -128,10 +225,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const starredIds = useMemo(() => new Set(starredSongs.map(({ id }) => id)), [starredSongs]);
 
   function isTrackStarred(track: Track): boolean {
-    return (
-      starredIds.has(track.id) ||
-      (!mutatedFavoriteIds.current.has(track.id) && Boolean(track.starred))
-    );
+    return starredIds.has(track.id);
   }
 
   function favoriteSnapshotIsCurrent(generation: number): boolean {
@@ -139,6 +233,26 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
       generation === favoriteRefreshGeneration.current &&
       pendingFavoriteWrites.current.size === 0
     );
+  }
+
+  async function getCachedAlbum(
+    activeClient: SubsonicClient,
+    id: string,
+    parentSignal: AbortSignal,
+    refresh = false,
+  ): Promise<Album> {
+    if (refresh) albumCache.current.delete(id);
+    const cached = albumCache.current.get(id);
+    if (cached) return cached;
+    const album = await withAbortableTimeout(
+      (signal) => activeClient.getAlbum(id, signal),
+      ALBUM_REQUEST_TIMEOUT_MS,
+      "Album request timed out",
+      parentSignal,
+    );
+    if (parentSignal.aborted) throw STALE_DETAIL_REQUEST;
+    albumCache.current.set(id, album);
+    return album;
   }
 
   async function loadHome(activeClient: SubsonicClient, generation: number): Promise<void> {
@@ -181,11 +295,16 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
 
   async function connect(input: ConnectionInput): Promise<void> {
     const generation = ++connectionGeneration.current;
+    artistDirectoryGeneration.current += 1;
+    artistDirectoryAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    albumCache.current.clear();
     favoriteVersions.current.clear();
-    mutatedFavoriteIds.current.clear();
     pendingFavoriteWrites.current.clear();
     favoriteReconcileNeeded.current = false;
     clearDetail();
+    setArtistDirectory(undefined);
+    setArtistsLoading(false);
+    setArtistsError(undefined);
     setIsConnecting(true);
     setConnectionError(undefined);
     setMutationError(undefined);
@@ -227,9 +346,11 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   function disconnect(): void {
     connectionGeneration.current += 1;
     searchGeneration.current += 1;
+    artistDirectoryGeneration.current += 1;
     favoriteRefreshGeneration.current += 1;
+    artistDirectoryAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    albumCache.current.clear();
     favoriteVersions.current.clear();
-    mutatedFavoriteIds.current.clear();
     pendingFavoriteWrites.current.clear();
     favoriteReconcileNeeded.current = false;
     mediaUrls?.clear();
@@ -239,6 +360,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     setConnectionError(undefined);
     setIsConnecting(false);
     setHome(EMPTY_HOME);
+    setArtistDirectory(undefined);
+    setArtistsLoading(false);
+    setArtistsError(undefined);
     setStarredSongs([]);
     setStarredAlbums([]);
     setStarredArtists([]);
@@ -250,6 +374,47 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
 
   async function refreshHome(): Promise<void> {
     if (client) await loadHome(client, connectionGeneration.current);
+  }
+
+  async function loadArtists(musicFolderId?: string): Promise<void> {
+    if (!client) return;
+    const activeClient = client;
+    const generation = ++artistDirectoryGeneration.current;
+    const activeConnection = connectionGeneration.current;
+    artistDirectoryAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    const requestController = new AbortController();
+    artistDirectoryAbortController.current = requestController;
+    setArtistsLoading(true);
+    setArtistsError(undefined);
+    try {
+      const directory = await withAbortableTimeout(
+        (signal) => activeClient.getArtists(musicFolderId, signal),
+        ARTIST_REQUEST_TIMEOUT_MS,
+        "Artist directory request timed out",
+        requestController.signal,
+      );
+      if (
+        generation !== artistDirectoryGeneration.current ||
+        activeConnection !== connectionGeneration.current
+      ) {
+        return;
+      }
+      setArtistDirectory(directory);
+    } catch (error) {
+      if (
+        generation === artistDirectoryGeneration.current &&
+        activeConnection === connectionGeneration.current
+      ) {
+        setArtistsError(message(error));
+      }
+    } finally {
+      if (
+        generation === artistDirectoryGeneration.current &&
+        activeConnection === connectionGeneration.current
+      ) {
+        setArtistsLoading(false);
+      }
+    }
   }
 
   async function retryHomeSection(section: HomeSection): Promise<void> {
@@ -335,23 +500,35 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   }
 
   function clearDetail(): void {
+    detailAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    detailAbortController.current = undefined;
     detailGeneration.current += 1;
     setActiveAlbum(undefined);
     setActiveArtist(undefined);
+    setActiveArtistTracks([]);
+    setArtistTracksLoading(false);
+    setArtistTracksWarning(undefined);
     setActiveGenre(undefined);
     setGenreTracks([]);
     setDetailLoading(false);
     setDetailError(undefined);
   }
 
-  async function openAlbum(id: string): Promise<void> {
+  async function openAlbum(id: string, refresh = false): Promise<void> {
     if (!client) return;
+    const activeClient = client;
+    detailAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    const requestController = new AbortController();
+    detailAbortController.current = requestController;
     const generation = ++detailGeneration.current;
     const activeConnection = connectionGeneration.current;
+    setActiveArtistTracks([]);
+    setArtistTracksLoading(false);
+    setArtistTracksWarning(undefined);
     setDetailLoading(true);
     setDetailError(undefined);
     try {
-      const album = await client.getAlbum(id);
+      const album = await getCachedAlbum(activeClient, id, requestController.signal, refresh);
       if (
         generation !== detailGeneration.current ||
         activeConnection !== connectionGeneration.current
@@ -378,23 +555,78 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     }
   }
 
-  async function openArtist(id: string): Promise<void> {
+  async function openArtist(id: string, refresh = false): Promise<void> {
     if (!client) return;
+    const activeClient = client;
+    detailAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    const requestController = new AbortController();
+    detailAbortController.current = requestController;
     const generation = ++detailGeneration.current;
     const activeConnection = connectionGeneration.current;
+    const detailIsCurrent = () =>
+      generation === detailGeneration.current &&
+      activeConnection === connectionGeneration.current;
+    setActiveArtistTracks([]);
+    setArtistTracksLoading(false);
+    setArtistTracksWarning(undefined);
     setDetailLoading(true);
     setDetailError(undefined);
     try {
-      const artist = await client.getArtist(id);
-      if (
-        generation !== detailGeneration.current ||
-        activeConnection !== connectionGeneration.current
-      ) {
-        return;
-      }
+      const artist = await withAbortableTimeout(
+        (signal) => activeClient.getArtist(id, signal),
+        ARTIST_REQUEST_TIMEOUT_MS,
+        "Artist request timed out",
+        requestController.signal,
+      );
+      if (!detailIsCurrent()) return;
       setActiveArtist(artist);
       setActiveAlbum(undefined);
       setActiveGenre(undefined);
+      setDetailLoading(false);
+
+      const albums = artist.album ?? [];
+      if (albums.length === 0) return;
+      setArtistTracksLoading(true);
+      const progressiveResults = new Array<PromiseSettledResult<Album> | undefined>(
+        albums.length,
+      );
+      const albumResults = await settleWithConcurrency(
+        albums,
+        ARTIST_ALBUM_CONCURRENCY,
+        (album) => {
+          if (!detailIsCurrent()) throw STALE_DETAIL_REQUEST;
+          return getCachedAlbum(
+            activeClient,
+            album.id,
+            requestController.signal,
+            refresh,
+          );
+        },
+        (result, index) => {
+          progressiveResults[index] = result;
+          if (detailIsCurrent()) {
+            setActiveArtistTracks(collectArtistTracks(progressiveResults));
+          }
+        },
+      );
+      if (!detailIsCurrent()) return;
+
+      let failedAlbums = 0;
+      albumResults.forEach((result) => {
+        if (result.status === "rejected") {
+          failedAlbums += 1;
+        }
+      });
+      setActiveArtistTracks(collectArtistTracks(albumResults));
+      if (failedAlbums === albums.length) {
+        setArtistTracksWarning(
+          `Songs could not be loaded from ${failedAlbums === 1 ? "1 album" : `${failedAlbums} albums`}.`,
+        );
+      } else if (failedAlbums > 0) {
+        setArtistTracksWarning(
+          `${failedAlbums} of ${albums.length} albums could not be loaded; showing the remaining songs.`,
+        );
+      }
     } catch (error) {
       if (
         generation === detailGeneration.current &&
@@ -408,18 +640,31 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
         activeConnection === connectionGeneration.current
       ) {
         setDetailLoading(false);
+        setArtistTracksLoading(false);
       }
     }
   }
 
   async function openGenre(genre: string): Promise<void> {
     if (!client) return;
+    const activeClient = client;
+    detailAbortController.current?.abort(STALE_DETAIL_REQUEST);
+    const requestController = new AbortController();
+    detailAbortController.current = requestController;
     const generation = ++detailGeneration.current;
     const activeConnection = connectionGeneration.current;
+    setActiveArtistTracks([]);
+    setArtistTracksLoading(false);
+    setArtistTracksWarning(undefined);
     setDetailLoading(true);
     setDetailError(undefined);
     try {
-      const tracks = await client.getSongsByGenre(genre, 80);
+      const tracks = await withAbortableTimeout(
+        (signal) => activeClient.getSongsByGenre(genre, 80, 0, signal),
+        ARTIST_REQUEST_TIMEOUT_MS,
+        "Genre request timed out",
+        requestController.signal,
+      );
       if (
         generation !== detailGeneration.current ||
         activeConnection !== connectionGeneration.current
@@ -449,9 +694,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
 
   async function toggleStar(track: Track): Promise<void> {
     if (!client) return;
+    albumCache.current.clear();
     const wasStarred = isTrackStarred(track);
     const willStar = !wasStarred;
-    mutatedFavoriteIds.current.add(track.id);
     const previousStarredIndex = starredSongs.findIndex(({ id }) => id === track.id);
     const previousStarredTrack = previousStarredIndex >= 0
       ? starredSongs[previousStarredIndex]
@@ -464,6 +709,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     favoriteRefreshGeneration.current += 1;
     const previousSearchStarred = searchResult?.song.find(({ id }) => id === track.id)?.starred;
     const previousAlbumStarred = activeAlbum?.song?.find(({ id }) => id === track.id)?.starred;
+    const previousArtistStarred = activeArtistTracks.find(({ id }) => id === track.id)?.starred;
     const previousGenreStarred = genreTracks.find(({ id }) => id === track.id)?.starred;
     setMutationError(undefined);
     setStarredSongs((songs) =>
@@ -477,6 +723,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     setActiveAlbum((album) =>
       album?.song ? { ...album, song: updateTrackList(album.song, track.id, willStar) } : album,
     );
+    setActiveArtistTracks((tracks) => updateTrackList(tracks, track.id, willStar));
     setGenreTracks((tracks) => updateTrackList(tracks, track.id, willStar));
 
     let writeSucceeded = false;
@@ -485,7 +732,12 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
       else await client.unstar(track.id);
       writeSucceeded = true;
     } catch (error) {
-      if (favoriteVersions.current.get(track.id) !== mutationVersion) return;
+      if (
+        activeConnection !== connectionGeneration.current ||
+        favoriteVersions.current.get(track.id) !== mutationVersion
+      ) {
+        return;
+      }
       setStarredSongs((songs) => {
         const withoutTarget = songs.filter(({ id }) => id !== track.id);
         if (!wasStarred) return withoutTarget;
@@ -512,6 +764,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
               song: restoreTrackStarredValue(album.song, track.id, previousAlbumStarred),
             }
           : album,
+      );
+      setActiveArtistTracks((tracks) =>
+        restoreTrackStarredValue(tracks, track.id, previousArtistStarred),
       );
       setGenreTracks((tracks) =>
         restoreTrackStarredValue(tracks, track.id, previousGenreStarred),
@@ -558,6 +813,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     rememberedServerUrl,
     rememberedUsername,
     home,
+    artistDirectory,
+    artistsLoading,
+    artistsError,
     starredSongs,
     starredAlbums,
     starredArtists,
@@ -569,6 +827,9 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     searchError,
     activeAlbum,
     activeArtist,
+    activeArtistTracks,
+    artistTracksLoading,
+    artistTracksWarning,
     activeGenre,
     genreTracks,
     detailLoading,
@@ -577,6 +838,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     connect,
     disconnect,
     refreshHome,
+    loadArtists,
     retryHomeSection,
     search,
     openAlbum,

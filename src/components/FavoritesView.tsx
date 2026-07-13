@@ -2,7 +2,7 @@ import { formatCount } from "../lib/format";
 import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
-import { Artwork } from "./Artwork";
+import { ArtistShelf } from "./ArtistShelf";
 import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
 
@@ -93,6 +93,7 @@ export function FavoritesView({
           onPlay={onPlay}
           onAddToQueue={onAddToQueue}
           onToggleStar={onToggleStar}
+          onOpenArtist={onOpenArtist}
         />
       ) : null}
       {albums.length > 0 ? (
@@ -104,29 +105,13 @@ export function FavoritesView({
         />
       ) : null}
       {artists.length > 0 ? (
-        <section className="artist-results" aria-labelledby="favorite-artists-heading">
-          <header className="section-heading">
-            <div>
-              <p className="eyebrow">Pinned voices</p>
-              <h2 id="favorite-artists-heading">Favorite artists</h2>
-            </div>
-          </header>
-          <ul className="artist-grid">
-            {artists.map((artist) => (
-              <li key={artist.id}>
-                <button
-                  type="button"
-                  aria-label={`Open artist ${artist.name}`}
-                  onClick={() => onOpenArtist(artist)}
-                >
-                  <Artwork src={coverUrl(artist.coverArt, 320)} alt={`${artist.name} artwork`} />
-                  <strong>{artist.name}</strong>
-                  <span>{formatCount(artist.albumCount)} albums</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+        <ArtistShelf
+          title="Favorite artists"
+          eyebrow="Pinned voices"
+          artists={artists}
+          coverUrl={coverUrl}
+          onOpenArtist={onOpenArtist}
+        />
       ) : null}
     </div>
   );

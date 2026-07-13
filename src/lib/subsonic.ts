@@ -3,6 +3,8 @@ import SparkMD5 from "spark-md5";
 import type {
   Album,
   Artist,
+  ArtistDirectory,
+  ArtistIndex,
   AuthConfig,
   Genre,
   SearchResult,
@@ -124,10 +126,16 @@ export interface SubsonicClient {
     size?: number,
     offset?: number,
   ): Promise<Album[]>;
-  getAlbum(id: string): Promise<Album>;
-  getArtist(id: string): Promise<Artist>;
+  getAlbum(id: string, signal?: AbortSignal): Promise<Album>;
+  getArtists(musicFolderId?: string, signal?: AbortSignal): Promise<ArtistDirectory>;
+  getArtist(id: string, signal?: AbortSignal): Promise<Artist>;
   getGenres(): Promise<Genre[]>;
-  getSongsByGenre(genre: string, count?: number, offset?: number): Promise<Track[]>;
+  getSongsByGenre(
+    genre: string,
+    count?: number,
+    offset?: number,
+    signal?: AbortSignal,
+  ): Promise<Track[]>;
   search3(query: string): Promise<SearchResult>;
   getStarred2(): Promise<StarredResult>;
   star(id: string): Promise<void>;
@@ -145,12 +153,23 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
   async function request<T extends UnknownRecord = UnknownRecord>(
     endpoint: string,
     params: Record<string, string | number | boolean | undefined> = {},
+    signal?: AbortSignal,
   ): Promise<SubsonicRoot<T>> {
     const url = endpointUrl(options.serverUrl, endpoint, options.auth, params, saltFactory);
     let response: Response;
     try {
-      response = await fetcher(url, { method: "GET", headers: { Accept: "application/json" } });
+      response = await fetcher(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+      });
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("Request aborted", "AbortError");
+      }
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
       const detail = error instanceof Error ? error.message : "Network request failed";
       throw new SubsonicError({
         code: 0,
@@ -166,6 +185,12 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
     try {
       return unwrapSubsonicResponse<T>(await response.json());
     } catch (error) {
+      if (signal?.aborted) {
+        throw signal.reason instanceof Error
+          ? signal.reason
+          : new DOMException("Request aborted", "AbortError");
+      }
+      if (error instanceof DOMException && error.name === "AbortError") throw error;
       if (error instanceof SubsonicError) throw error;
       throw new SubsonicError({ code: 0, message: "Navidrome returned invalid JSON" });
     }
@@ -183,13 +208,31 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
       });
       return asArray(root.albumList2?.album);
     },
-    async getAlbum(id) {
-      const root = await request<{ album?: Album }>("getAlbum", { id });
+    async getAlbum(id, signal) {
+      const root = await request<{ album?: Album }>("getAlbum", { id }, signal);
       if (!root.album) throw new SubsonicError({ code: 70, message: "Album not found" });
       return { ...root.album, song: asArray(root.album.song) };
     },
-    async getArtist(id) {
-      const root = await request<{ artist?: Artist }>("getArtist", { id });
+    async getArtists(musicFolderId, signal) {
+      type RawArtistIndex = Omit<ArtistIndex, "artist"> & {
+        artist?: Artist | Artist[];
+      };
+      const root = await request<{
+        artists?: {
+          ignoredArticles?: string;
+          index?: RawArtistIndex | RawArtistIndex[];
+        };
+      }>("getArtists", { musicFolderId }, signal);
+      const index = asArray(root.artists?.index).map((entry) => ({
+        ...entry,
+        artist: asArray(entry.artist),
+      }));
+      return root.artists?.ignoredArticles === undefined
+        ? { index }
+        : { ignoredArticles: root.artists.ignoredArticles, index };
+    },
+    async getArtist(id, signal) {
+      const root = await request<{ artist?: Artist }>("getArtist", { id }, signal);
       if (!root.artist) throw new SubsonicError({ code: 70, message: "Artist not found" });
       return { ...root.artist, album: asArray(root.artist.album) };
     },
@@ -197,12 +240,12 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
       const root = await request<{ genres?: { genre?: Genre | Genre[] } }>("getGenres");
       return asArray(root.genres?.genre);
     },
-    async getSongsByGenre(genre, count = 60, offset = 0) {
+    async getSongsByGenre(genre, count = 60, offset = 0, signal) {
       const root = await request<{ songsByGenre?: { song?: Track | Track[] } }>("getSongsByGenre", {
         genre,
         count,
         offset,
-      });
+      }, signal);
       return asArray(root.songsByGenre?.song);
     },
     async search3(query) {

@@ -2,7 +2,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SubsonicClient } from "../lib/subsonic";
-import type { Album, Artist, Track } from "../types";
+import type { Album, Artist, ArtistDirectory, Track } from "../types";
 import { useNavidrome, type HomeSection } from "./useNavidrome";
 
 function deferred<T>() {
@@ -20,6 +20,7 @@ function navidromeClient(overrides: Partial<SubsonicClient> = {}): SubsonicClien
     ping: vi.fn(async () => ({ status: "ok" as const, version: "1.16.1" })),
     getAlbumList2: vi.fn(async () => []),
     getAlbum: vi.fn(async (id) => ({ id, name: "Album", song: [] })),
+    getArtists: vi.fn(async () => ({ index: [] })),
     getArtist: vi.fn(async (id) => ({ id, name: "Artist", album: [] })),
     getGenres: vi.fn(async () => []),
     getSongsByGenre: vi.fn(async () => []),
@@ -73,7 +74,7 @@ describe("detail request generation", () => {
     });
     await act(async () => {
       albumRequest.resolve({ id: "old-album", name: "Old Album", song: [] });
-      artistRequest.reject(new Error("old artist failed"));
+      artistRequest.resolve({ id: "old-artist", name: "Old Artist", album: [] });
       await Promise.all([albumOpen, artistOpen]);
     });
 
@@ -158,6 +159,414 @@ describe("detail request generation", () => {
     expect(result.current.activeAlbum).toBeUndefined();
     expect(result.current.detailError).toBeUndefined();
     expect(result.current.detailLoading).toBe(false);
+  });
+});
+
+describe("artist directory", () => {
+  it("loads the indexed directory only when requested", async () => {
+    const request = deferred<ArtistDirectory>();
+    const getArtists = vi.fn(() => request.promise);
+    const nextClient = navidromeClient({ getArtists });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    expect(getArtists).not.toHaveBeenCalled();
+    expect(result.current.artistDirectory).toBeUndefined();
+
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.loadArtists("folder-1");
+    });
+    await waitFor(() => expect(result.current.artistsLoading).toBe(true));
+    expect(getArtists).toHaveBeenCalledWith("folder-1", expect.any(AbortSignal));
+
+    await act(async () => {
+      request.resolve({
+        ignoredArticles: "The",
+        index: [{ name: "S", artist: [{ id: "artist-1", name: "Signal Club" }] }],
+      });
+      await loading;
+    });
+    expect(result.current.artistDirectory?.index[0]?.artist[0]?.name).toBe("Signal Club");
+    expect(result.current.artistsLoading).toBe(false);
+    expect(result.current.artistsError).toBeUndefined();
+  });
+
+  it("does not restore a pending directory after disconnect", async () => {
+    const request = deferred<ArtistDirectory>();
+    const nextClient = navidromeClient({ getArtists: vi.fn(() => request.promise) });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    let loading!: Promise<void>;
+    act(() => {
+      loading = result.current.loadArtists();
+    });
+    await waitFor(() => expect(result.current.artistsLoading).toBe(true));
+    act(() => result.current.disconnect());
+    await act(async () => {
+      request.resolve({ index: [{ name: "A", artist: [{ id: "late", name: "Late" }] }] });
+      await loading;
+    });
+
+    expect(result.current.artistDirectory).toBeUndefined();
+    expect(result.current.artistsLoading).toBe(false);
+    expect(result.current.artistsError).toBeUndefined();
+  });
+
+  it("aborts and times out a stalled artist directory request", async () => {
+    vi.useFakeTimers();
+    try {
+      let requestSignal: AbortSignal | undefined;
+      const nextClient = navidromeClient({
+        getArtists: vi.fn((_musicFolderId, signal) => {
+          requestSignal = signal;
+          return new Promise<ArtistDirectory>(() => undefined);
+        }),
+      });
+      const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+      await act(async () => result.current.connect(connection));
+
+      let loading!: Promise<void>;
+      await act(async () => {
+        loading = result.current.loadArtists();
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(requestSignal?.aborted).toBe(false);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+        await loading;
+      });
+      expect(requestSignal?.aborted).toBe(true);
+      expect(result.current.artistsLoading).toBe(false);
+      expect(result.current.artistsError).toBe("Artist directory request timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("artist songs", () => {
+  it("publishes the artist and albums before its album songs finish loading", async () => {
+    const albumRequest = deferred<Album>();
+    const nextClient = navidromeClient({
+      getArtist: vi.fn(async () => ({
+        id: "artist-1",
+        name: "Signal Club",
+        album: [{ id: "album-1", name: "Night Signals" }],
+      })),
+      getAlbum: vi.fn(() => albumRequest.promise),
+    });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    let opening!: Promise<void>;
+    act(() => {
+      opening = result.current.openArtist("artist-1");
+    });
+    await waitFor(() => expect(result.current.artistTracksLoading).toBe(true));
+    expect(result.current.activeArtist?.name).toBe("Signal Club");
+    expect(result.current.activeArtist?.album?.[0]?.name).toBe("Night Signals");
+    expect(result.current.detailLoading).toBe(false);
+    expect(result.current.activeArtistTracks).toEqual([]);
+
+    await act(async () => {
+      albumRequest.resolve({
+        id: "album-1",
+        name: "Night Signals",
+        song: [{ id: "track-1", title: "Blue Hour" }],
+      });
+      await opening;
+    });
+    expect(result.current.activeArtistTracks.map(({ id }) => id)).toEqual(["track-1"]);
+    expect(result.current.artistTracksLoading).toBe(false);
+  });
+
+  it("publishes completed albums while another album is pending, then times it out", async () => {
+    vi.useFakeTimers();
+    try {
+      const pendingAlbum = deferred<Album>();
+      let pendingSignal: AbortSignal | undefined;
+      const nextClient = navidromeClient({
+        getArtist: vi.fn(async () => ({
+          id: "artist-1",
+          name: "Signal Club",
+          album: [
+            { id: "album-pending", name: "Pending" },
+            { id: "album-ready", name: "Ready" },
+          ],
+        })),
+        getAlbum: vi.fn((id, signal) => {
+          if (id === "album-pending") {
+            pendingSignal = signal;
+            return pendingAlbum.promise;
+          }
+          return Promise.resolve({
+                id,
+                name: "Ready",
+                song: [{ id: "ready-track", title: "Already Here" }],
+              });
+        }),
+      });
+      const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+      await act(async () => result.current.connect(connection));
+
+      let opening!: Promise<void>;
+      await act(async () => {
+        opening = result.current.openArtist("artist-1");
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      expect(result.current.activeArtistTracks.map(({ id }) => id)).toEqual(["ready-track"]);
+      expect(result.current.artistTracksLoading).toBe(true);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+        await opening;
+      });
+      expect(result.current.activeArtistTracks.map(({ id }) => id)).toEqual(["ready-track"]);
+      expect(result.current.artistTracksWarning).toMatch(/1 of 2 albums/);
+      expect(result.current.artistTracksLoading).toBe(false);
+      expect(pendingSignal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps real album transports at five while timed-out requests are replaced", async () => {
+    vi.useFakeTimers();
+    try {
+      const albums = Array.from({ length: 7 }, (_, index) => ({
+        id: `album-${index}`,
+        name: `Album ${index}`,
+      }));
+      let activeTransports = 0;
+      let maximumTransports = 0;
+      const getAlbum = vi.fn((_id: string, signal?: AbortSignal) =>
+        new Promise<Album>(() => {
+          activeTransports += 1;
+          maximumTransports = Math.max(maximumTransports, activeTransports);
+          signal?.addEventListener("abort", () => {
+            activeTransports -= 1;
+          }, { once: true });
+        }),
+      );
+      const nextClient = navidromeClient({
+        getArtist: vi.fn(async () => ({ id: "artist-1", name: "Signal Club", album: albums })),
+        getAlbum,
+      });
+      const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+      await act(async () => result.current.connect(connection));
+
+      let opening!: Promise<void>;
+      await act(async () => {
+        opening = result.current.openArtist("artist-1");
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(getAlbum).toHaveBeenCalledTimes(5);
+      expect(activeTransports).toBe(5);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      expect(getAlbum).toHaveBeenCalledTimes(7);
+      expect(activeTransports).toBe(2);
+      expect(maximumTransports).toBe(5);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+        await opening;
+      });
+      expect(activeTransports).toBe(0);
+      expect(result.current.artistTracksWarning).toMatch(/7 albums/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not start queued album requests after the artist detail is cleared", async () => {
+    const albums = Array.from({ length: 7 }, (_, index) => ({
+      id: `album-${index}`,
+      name: `Album ${index}`,
+    }));
+    const requests = new Map<string, ReturnType<typeof deferred<Album>>>();
+    const requestSignals = new Map<string, AbortSignal | undefined>();
+    const getAlbum = vi.fn((id: string, signal?: AbortSignal) => {
+      const request = deferred<Album>();
+      requests.set(id, request);
+      requestSignals.set(id, signal);
+      return request.promise;
+    });
+    const nextClient = navidromeClient({
+      getArtist: vi.fn(async () => ({ id: "artist-1", name: "Signal Club", album: albums })),
+      getAlbum,
+    });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    let opening!: Promise<void>;
+    act(() => {
+      opening = result.current.openArtist("artist-1");
+    });
+    await waitFor(() => expect(getAlbum).toHaveBeenCalledTimes(5));
+    act(() => result.current.clearDetail());
+    expect([...requestSignals.values()].every((signal) => signal?.aborted)).toBe(true);
+
+    await act(async () => {
+      requests.get("album-0")?.resolve({ id: "album-0", name: "Album 0", song: [] });
+      await Promise.resolve();
+    });
+    expect(getAlbum).toHaveBeenCalledTimes(5);
+
+    await act(async () => {
+      for (let index = 1; index < 5; index += 1) {
+        requests.get(`album-${index}`)?.resolve({
+          id: `album-${index}`,
+          name: `Album ${index}`,
+          song: [],
+        });
+      }
+      await opening;
+    });
+    expect(getAlbum).toHaveBeenCalledTimes(5);
+    expect(result.current.activeArtistTracks).toEqual([]);
+  });
+
+  it("limits album requests, preserves order, deduplicates tracks, and reuses the cache", async () => {
+    const albums = Array.from({ length: 7 }, (_, index) => ({
+      id: `album-${index}`,
+      name: `Album ${index}`,
+    }));
+    let concurrentRequests = 0;
+    let maximumConcurrency = 0;
+    const getAlbum = vi.fn(async (id: string): Promise<Album> => {
+      concurrentRequests += 1;
+      maximumConcurrency = Math.max(maximumConcurrency, concurrentRequests);
+      await Promise.resolve();
+      concurrentRequests -= 1;
+      if (id === "album-2") throw new Error("album unavailable");
+      const index = Number(id.split("-")[1]);
+      return {
+        id,
+        name: `Album ${index}`,
+        song: [
+          ...(index === 0 || index === 3 ? [{ id: "shared", title: "Shared" }] : []),
+          { id: `track-${index}`, title: `Track ${index}` },
+        ],
+      };
+    });
+    const nextClient = navidromeClient({
+      getArtist: vi.fn(async () => ({ id: "artist-1", name: "Signal Club", album: albums })),
+      getAlbum,
+    });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    await act(async () => result.current.openArtist("artist-1"));
+
+    expect(maximumConcurrency).toBe(5);
+    expect(result.current.activeArtistTracks.map(({ id }) => id)).toEqual([
+      "shared",
+      "track-0",
+      "track-1",
+      "track-3",
+      "track-4",
+      "track-5",
+      "track-6",
+    ]);
+    expect(result.current.artistTracksWarning).toMatch(/1 of 7 albums/);
+    const callsAfterArtist = getAlbum.mock.calls.length;
+
+    await act(async () => result.current.openAlbum("album-0"));
+    expect(getAlbum).toHaveBeenCalledTimes(callsAfterArtist);
+    expect(result.current.activeAlbum?.song?.map(({ id }) => id)).toEqual(["shared", "track-0"]);
+  });
+
+  it("bypasses a successful album cache entry on an explicit refresh", async () => {
+    const getAlbum = vi.fn()
+      .mockResolvedValueOnce({ id: "album-1", name: "First", song: [] })
+      .mockResolvedValueOnce({
+        id: "album-1",
+        name: "Refreshed",
+        song: [{ id: "track-1", title: "Newly Indexed" }],
+      });
+    const nextClient = navidromeClient({ getAlbum });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    await act(async () => result.current.openAlbum("album-1"));
+    await act(async () => result.current.openAlbum("album-1"));
+    expect(getAlbum).toHaveBeenCalledTimes(1);
+
+    await act(async () => result.current.openAlbum("album-1", true));
+    expect(getAlbum).toHaveBeenCalledTimes(2);
+    expect(result.current.activeAlbum?.name).toBe("Refreshed");
+    expect(result.current.activeAlbum?.song?.[0]?.id).toBe("track-1");
+  });
+
+  it("ignores album aggregation that finishes after disconnect", async () => {
+    const albumRequest = deferred<Album>();
+    const nextClient = navidromeClient({
+      getArtist: vi.fn(async () => ({
+        id: "artist-1",
+        name: "Signal Club",
+        album: [{ id: "album-1", name: "Album" }],
+      })),
+      getAlbum: vi.fn(() => albumRequest.promise),
+    });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+
+    let opening!: Promise<void>;
+    act(() => {
+      opening = result.current.openArtist("artist-1");
+    });
+    await waitFor(() => expect(result.current.artistTracksLoading).toBe(true));
+    act(() => result.current.disconnect());
+    await act(async () => {
+      albumRequest.resolve({
+        id: "album-1",
+        name: "Album",
+        song: [{ id: "late-track", title: "Late" }],
+      });
+      await opening;
+    });
+
+    expect(result.current.activeArtist).toBeUndefined();
+    expect(result.current.activeArtistTracks).toEqual([]);
+    expect(result.current.artistTracksLoading).toBe(false);
+    expect(result.current.artistTracksWarning).toBeUndefined();
+  });
+
+  it("optimistically updates artist tracks and restores them when starring fails", async () => {
+    const write = deferred<void>();
+    const track: Track = { id: "track-1", title: "Blue Hour", albumId: "album-1" };
+    const nextClient = navidromeClient({
+      getArtist: vi.fn(async () => ({
+        id: "artist-1",
+        name: "Signal Club",
+        album: [{ id: "album-1", name: "Album" }],
+      })),
+      getAlbum: vi.fn(async () => ({ id: "album-1", name: "Album", song: [track] })),
+      star: vi.fn(() => write.promise),
+    });
+    const { result } = renderHook(() => useNavidrome({ clientFactory: () => nextClient }));
+    await act(async () => result.current.connect(connection));
+    await act(async () => result.current.openArtist("artist-1"));
+
+    let mutation!: Promise<void>;
+    act(() => {
+      mutation = result.current.toggleStar(track);
+    });
+    await waitFor(() => expect(result.current.activeArtistTracks[0]?.starred).toBeTruthy());
+    await act(async () => {
+      write.reject(new Error("write failed"));
+      await mutation;
+    });
+
+    expect(result.current.activeArtistTracks[0]?.starred).toBeUndefined();
+    expect(result.current.mutationError).toBe("write failed");
   });
 });
 
@@ -452,7 +861,7 @@ describe("mutation-aware favorite truth", () => {
     });
   }
 
-  it("falls back to track.starred before mutation then uses starredIds for unstar to star", async () => {
+  it("uses the reconciled starredIds set as the single favorite truth", async () => {
     const staleQueueTrack = {
       id: "queue-song",
       title: "Queue Signal",
@@ -461,32 +870,32 @@ describe("mutation-aware favorite truth", () => {
     const getStarred2 = vi
       .fn()
       .mockResolvedValueOnce({ song: [], album: [], artist: [] })
-      .mockResolvedValueOnce({ song: [], album: [], artist: [] })
       .mockResolvedValueOnce({
         song: [{ ...staleQueueTrack, starred: "2026-07-10T11:00:00.000Z" }],
         album: [],
         artist: [],
-      });
+      })
+      .mockResolvedValueOnce({ song: [], album: [], artist: [] });
     const nextClient = navidromeClient({ getStarred2 });
     const { result } = renderFavoriteHook(nextClient);
     await act(async () => result.current.connect(connection));
 
     expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(false);
-    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(true);
+    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(false);
 
     await act(async () => result.current.toggleStar(staleQueueTrack));
     await waitFor(() => expect(getStarred2).toHaveBeenCalledTimes(2));
-    expect(nextClient.unstar).toHaveBeenCalledTimes(1);
-    expect(nextClient.star).not.toHaveBeenCalled();
-    expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(false);
-    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(false);
+    expect(nextClient.star).toHaveBeenCalledTimes(1);
+    expect(nextClient.unstar).not.toHaveBeenCalled();
+    expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(true);
+    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(true);
 
     await act(async () => result.current.toggleStar(staleQueueTrack));
     await waitFor(() => expect(getStarred2).toHaveBeenCalledTimes(3));
     expect(nextClient.unstar).toHaveBeenCalledTimes(1);
     expect(nextClient.star).toHaveBeenCalledTimes(1);
-    expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(true);
-    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(true);
+    expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(false);
+    expect(result.current.isTrackStarred(staleQueueTrack)).toBe(false);
   });
 
   it("rolls mutation-aware truth back to the exact prior favorite state on failure", async () => {
@@ -497,7 +906,7 @@ describe("mutation-aware favorite truth", () => {
       starred: originalStarred,
     };
     const nextClient = navidromeClient({
-      getStarred2: vi.fn(async () => ({ song: [], album: [], artist: [] })),
+      getStarred2: vi.fn(async () => ({ song: [staleQueueTrack], album: [], artist: [] })),
       unstar: vi.fn(async () => {
         throw new Error("favorite write failed");
       }),
@@ -512,5 +921,46 @@ describe("mutation-aware favorite truth", () => {
     expect(result.current.starredSongs[0]?.starred).toBe(originalStarred);
     expect(result.current.starredIds.has(staleQueueTrack.id)).toBe(true);
     expect(result.current.isTrackStarred(staleQueueTrack)).toBe(true);
+  });
+
+  it("does not let a failed write from an old connection roll back the new session", async () => {
+    const track = { id: "shared-song", title: "Shared Signal" };
+    const oldWrite = deferred<void>();
+    const firstClient = navidromeClient({
+      getStarred2: vi.fn(async () => ({ song: [], album: [], artist: [] })),
+      star: vi.fn(() => oldWrite.promise),
+    });
+    const secondStarred = vi
+      .fn()
+      .mockResolvedValueOnce({ song: [], album: [], artist: [] })
+      .mockResolvedValueOnce({
+        song: [{ ...track, starred: "2026-07-13T12:00:00.000Z" }],
+        album: [],
+        artist: [],
+      });
+    const secondClient = navidromeClient({ getStarred2: secondStarred });
+    const factory = vi.fn()
+      .mockReturnValueOnce(firstClient)
+      .mockReturnValueOnce(secondClient);
+    const current = renderHook(() => useNavidrome({ clientFactory: factory }));
+
+    await act(async () => current.result.current.connect(connection));
+    let oldMutation!: Promise<void>;
+    act(() => {
+      oldMutation = current.result.current.toggleStar(track);
+    });
+    await waitFor(() => expect(firstClient.star).toHaveBeenCalledTimes(1));
+
+    await act(async () => current.result.current.connect(connection));
+    await act(async () => current.result.current.toggleStar(track));
+    await waitFor(() => expect(secondStarred).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(current.result.current.starredIds.has(track.id)).toBe(true));
+
+    await act(async () => {
+      oldWrite.reject(new Error("old session write failed"));
+      await oldMutation;
+    });
+    expect(current.result.current.starredIds.has(track.id)).toBe(true);
+    expect(current.result.current.mutationError).toBeUndefined();
   });
 });

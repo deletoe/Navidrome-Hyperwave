@@ -7,18 +7,18 @@ Verified locally on 2026-07-13 (Asia/Shanghai). No password, API key, tokenized 
 Fresh final command:
 
 ```text
-npm run test:run && npm run typecheck && npm run build && npm audit --audit-level=high
+npm run test:run && npm run typecheck && npm run build && npm audit --audit-level=high && git diff --check
 ```
 
 Result:
 
-- Vitest 4.1.10: 18 test files passed, 164 tests passed, 0 failed.
+- Vitest 4.1.10: 22 test files passed, 202 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
-- Vite 6.4.3 production build: exit 0, 1,613 modules transformed.
-- Production bundle: CSS 98.21 kB (17.68 kB gzip), JS 313.65 kB (95.56 kB gzip).
+- Vite 6.4.3 production build: exit 0, 1,617 modules transformed.
+- Production bundle: CSS 104.63 kB (18.52 kB gzip), JS 325.86 kB (99.01 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven Canvas render strategies, bounded particles, one RAF chain, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, and ordinary playback continuing while `AudioContext.resume()` remains pending. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
+The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven Canvas render strategies, bounded particles, one RAF chain, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, and ordinary playback continuing while `AudioContext.resume()` remains pending. Artist coverage includes two-level `getArtists` normalization, lazy directory loading, stable controlled filtering, five-request album expansion, real transport aborts, 15-second timeouts, progressive publication, order preservation, track deduplication, partial failure, forced refresh, stale-response guards, authoritative favorite truth, focus/scroll restoration, accessible artist links, duplicate-navigation prevention, and full-collection playback. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
 
 ## Local server and credential boundary
 
@@ -71,9 +71,19 @@ The real local app was rechecked in the in-app browser at its default 1280×720 
 
 Visual inspection confirmed that foreground art is part of the information hierarchy rather than a second full-page background: theme artifacts occupy the hero stage, live covers overlap them as physical media, artist cards use image-led proportions, and track/queue thumbnails remain readable at dense list scale.
 
+## Complete artist library acceptance
+
+The new Artists destination was exercised in the in-app browser against the authorized real Navidrome library. `getArtists` returned 130 artists in the server's original grouped index. Filtering `Daft Punk` reduced the directory to one matching card without a new server request; opening it produced eight albums and 149 deduplicated songs aggregated from those albums.
+
+- The artist detail exposed eight real album cards, 149 track rows, Play all songs, Add all to queue, and an accessible artist link on every identifiable track.
+- Entering the detail moved focus to `#main-content`; Back restored the `Daft Punk` filter and its directory context. Opening the already-current artist is now a no-op instead of inserting a duplicate history step.
+- Album expansion publishes each completed album in stable server order, limits both logical workers and live network transports to five, aborts old work on navigation or disconnect, and turns a stalled request into a partial-result warning after 15 seconds.
+- At 1280×720 the detail contained five primary navigation items, eight albums and 149 songs with document width exactly 1280px. At 390×844 the same collection stayed at 390px with no horizontal overflow, a closed pointer-inert queue and no visible button below 44px in either dimension.
+- At 320×800 the five navigation labels remained fully visible, every visible button retained a 44px minimum touch target, and the artist directory used two image-led columns without horizontal overflow.
+
 ## Adaptive Visual Studio acceptance
 
-The new Studio view was exercised in the in-app browser against the authorized real Navidrome library. It appeared as the fourth primary destination beside Home, Search and Favorites and exposed one cover-response switch, one native 0–100 intensity control, Off/Spectrum/Particles/Hybrid modes, Automatic plus seven personality previews, and a filterable editor for all 50 real library genres.
+The Studio view was exercised in the in-app browser against the authorized real Navidrome library. It now appears as the fifth primary destination beside Home, Artists, Search and Favorites and exposes one cover-response switch, one native 0–100 intensity control, Off/Spectrum/Particles/Hybrid modes, Automatic plus seven personality previews, and a filterable editor for all 50 real library genres.
 
 The real `Da Funk` cover completed the authenticated Blob fetch and browser-side 48×48 analysis. Studio reported `Current cover colors are active` and displayed exactly three valid swatches: `#3957a2`, `#cf5650`, and `#0e1528`. With the cover response enabled, the mapped Rock personality blended its primary to `#8d5d78`; disabling the switch immediately restored the Rock default `#ff653f`, and re-enabling restored the extracted response. No authenticated cover URL, image bytes, password, token or complete query was printed or persisted by the app.
 
@@ -83,9 +93,9 @@ Responsive measurements from the real Studio surface:
 
 | Viewport | Result |
 | --- | --- |
-| 1280×720 | document width 1280px, four navigation entries, one 1280×720 Canvas, no broken images, smallest navigation dimension 45.8px |
-| 390×844 | document width 390px, 362.8px Studio content, 64px four-entry bottom navigation, one 390×844 Canvas, smallest visible button dimension 44px |
-| 320×800 | document width 320px, two-column personality previews, mapping rows degrade to two grid rows, four-entry navigation and 44px minimum visible buttons |
+| 1280×720 | document width 1280px, five navigation entries, one 1280×720 Canvas, no broken images, smallest navigation dimension 45.8px |
+| 390×844 | document width 390px, 362.8px Studio content, 64px five-entry bottom navigation, one 390×844 Canvas, smallest visible button dimension 44px |
+| 320×800 | document width 320px, two-column personality previews, mapping rows degrade to two grid rows, five-entry navigation and 44px minimum visible buttons |
 
 All three viewports had zero horizontal overflow. The Canvas had `pointer-events: none`, remained one instance through palette, mapping, preview and mode changes, and used a 2× bitmap at the desktop device pixel ratio. A final clean full-page reload, reconnect and Studio navigation produced no new browser warning or error logs.
 

@@ -53,6 +53,7 @@
 [data-theme] .album-card,
 [data-theme] .genre-grid button,
 [data-theme] .artist-grid button,
+[data-theme] .artist-card,
 [data-theme] .track-row,
 [data-theme] .view-hero,
 [data-theme] .entity-hero,
@@ -210,6 +211,20 @@
   aspect-ratio: 4 / 5;
 }
 
+[data-theme="prism"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 100%), 1fr));
+  gap: 1.1rem;
+}
+
+[data-theme="prism"] .artist-card {
+  border-color: color-mix(in srgb, var(--theme-primary) 34%, transparent);
+  background: color-mix(in srgb, var(--theme-surface) 83%, transparent);
+}
+
+[data-theme="prism"] .artist-card__artwork {
+  aspect-ratio: 4 / 5;
+}
+
 [data-theme="prism"] .track-row {
   border-radius: calc(var(--card-radius) * 0.72);
   background: linear-gradient(90deg, color-mix(in srgb, var(--theme-surface) 93%, transparent), transparent);
@@ -285,6 +300,22 @@
 [data-theme="cyber"] .album-card__artwork {
   aspect-ratio: 1;
   border-bottom-color: var(--theme-primary);
+}
+
+[data-theme="cyber"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(9.5rem, 100%), 1fr));
+  gap: 0.55rem;
+}
+
+[data-theme="cyber"] .artist-card {
+  border-top-color: var(--theme-secondary);
+  background: linear-gradient(145deg, rgba(3, 18, 24, 0.96), rgba(6, 31, 41, 0.82));
+}
+
+[data-theme="cyber"] .artist-card__artwork {
+  aspect-ratio: 1;
+  border-bottom-color: var(--theme-primary);
+  filter: contrast(1.08) saturate(1.12);
 }
 
 [data-theme="cyber"] .track-list__rows {
@@ -374,6 +405,21 @@
 }
 
 [data-theme="bloom"] .album-card__artwork {
+  aspect-ratio: 4 / 5;
+  border-radius: 50% 50% 18% 18% / 20% 20% 9% 9%;
+}
+
+[data-theme="bloom"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(12rem, 100%), 1fr));
+  gap: clamp(1rem, 2vw, 1.8rem);
+}
+
+[data-theme="bloom"] .artist-card {
+  border-radius: 44% 44% 1.4rem 1.4rem / 18% 18% 1.4rem 1.4rem;
+  background: rgba(88, 54, 79, 0.72);
+}
+
+[data-theme="bloom"] .artist-card__artwork {
   aspect-ratio: 4 / 5;
   border-radius: 50% 50% 18% 18% / 20% 20% 9% 9%;
 }
@@ -471,6 +517,21 @@
 }
 
 [data-theme="pixel"] .album-card__artwork {
+  aspect-ratio: 1;
+}
+
+[data-theme="pixel"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+  gap: 0.9rem;
+}
+
+[data-theme="pixel"] .artist-card {
+  border-width: 3px;
+  background: #1c1541;
+  box-shadow: 6px 6px 0 #050317;
+}
+
+[data-theme="pixel"] .artist-card__artwork {
   aspect-ratio: 1;
 }
 
@@ -578,6 +639,30 @@
   filter: contrast(1.08) saturate(0.88);
 }
 
+[data-theme="rock"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), 1fr));
+  gap: 1.35rem 0.8rem;
+}
+
+[data-theme="rock"] .artist-grid > li:nth-child(3n + 1) {
+  transform: rotate(-1.2deg);
+}
+
+[data-theme="rock"] .artist-grid > li:nth-child(3n + 2) {
+  transform: translateY(1rem) rotate(1deg);
+}
+
+[data-theme="rock"] .artist-card {
+  border-width: 3px;
+  background: #251c19;
+  box-shadow: 10px 10px 0 #050302;
+}
+
+[data-theme="rock"] .artist-card__artwork {
+  aspect-ratio: 5 / 6;
+  filter: contrast(1.08) saturate(0.88);
+}
+
 [data-theme="rock"] .track-list__rows {
   counter-reset: set-list;
   gap: 0;
@@ -675,6 +760,23 @@
   aspect-ratio: 2 / 3;
 }
 
+[data-theme="cinematic"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(11rem, 100%), 1fr));
+  gap: clamp(1rem, 2.3vw, 2.2rem);
+}
+
+[data-theme="cinematic"] .artist-card {
+  border-width: 1px 0;
+  border-radius: 0;
+  background: rgba(28, 31, 37, 0.9);
+}
+
+[data-theme="cinematic"] .artist-card__artwork {
+  aspect-ratio: 2 / 3;
+  outline: 1px solid color-mix(in srgb, var(--theme-primary) 52%, transparent);
+  outline-offset: -0.35rem;
+}
+
 [data-theme="cinematic"] .track-row {
   border-width: 0 0 1px;
   border-radius: 0;
@@ -760,6 +862,27 @@
 }
 
 [data-theme="lounge"] .album-card__artwork {
+  aspect-ratio: 1;
+  border: 0.55rem solid #050808;
+  border-radius: 50%;
+  box-shadow: 0 1.4rem 2.8rem rgba(0, 0, 0, 0.62);
+}
+
+[data-theme="lounge"] .artist-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(11rem, 100%), 1fr));
+  gap: 1.4rem 0.8rem;
+}
+
+[data-theme="lounge"] .artist-card {
+  overflow: visible;
+  border-width: 0 0 2px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+}
+
+[data-theme="lounge"] .artist-card__artwork {
   aspect-ratio: 1;
   border: 0.55rem solid #050808;
   border-radius: 50%;
@@ -1295,7 +1418,7 @@
   }
 
   [data-theme="cyber"] .primary-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   [data-theme="cyber"] .server-status {
@@ -1346,7 +1469,7 @@
 
   [data-theme="bloom"] .primary-nav,
   [data-theme="cinematic"] .primary-nav {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   [data-theme="cyber"] .primary-nav button,
@@ -1709,6 +1832,10 @@
   [data-theme="rock"] .album-grid > li:nth-child(3n + 2) {
     transform: translateY(0.65rem) rotate(0.7deg);
   }
+
+  [data-theme="rock"] .artist-grid > li:nth-child(3n + 2) {
+    transform: translateY(0.5rem) rotate(0.65deg);
+  }
 }
 
 @media (max-width: 767px) {
@@ -1769,7 +1896,8 @@
     border-radius: var(--card-radius);
   }
 
-  [data-theme] .album-card__artwork {
+  [data-theme] .album-card__artwork,
+  [data-theme] .artist-card__artwork {
     aspect-ratio: 1;
     border-radius: 0;
     filter: none;
@@ -1782,20 +1910,23 @@
   }
 
   [data-theme="rock"] .album-grid > li,
+  [data-theme="rock"] .artist-grid > li,
   [data-theme="rock"] .genre-grid > li,
   [data-theme="rock"] .queue-list > li,
   [data-theme="rock"] .navigation-rail {
     transform: none;
   }
 
-  [data-theme="lounge"] .album-card {
+  [data-theme="lounge"] .album-card,
+  [data-theme="lounge"] .artist-card {
     overflow: hidden;
     border: var(--frame);
     border-radius: var(--card-radius);
     background: color-mix(in srgb, var(--theme-surface) 91%, transparent);
   }
 
-  [data-theme="lounge"] .album-card__artwork {
+  [data-theme="lounge"] .album-card__artwork,
+  [data-theme="lounge"] .artist-card__artwork {
     border: 0;
     border-radius: 0;
   }

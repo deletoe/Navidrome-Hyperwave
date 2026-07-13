@@ -1,6 +1,7 @@
-import { useEffect, useId, useReducer, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useReducer, useRef, useState } from "react";
 
 import { AudioVisualizer } from "./components/AudioVisualizer";
+import { ArtistsView } from "./components/ArtistsView";
 import { ConnectionGate } from "./components/ConnectionGate";
 import { EntityDetail, type DetailKind } from "./components/EntityDetail";
 import { FavoritesView } from "./components/FavoritesView";
@@ -38,9 +39,18 @@ type DetailRequest =
   | { kind: "artist"; id: string }
   | { kind: "genre"; genre: string };
 
-type NavigationEntry =
+type NavigationTarget =
   | { view: PrimaryView }
   | { view: DetailKind; request: DetailRequest };
+
+type NavigationEntry = NavigationTarget & { scrollPosition: number };
+
+function detailRequestsMatch(left: DetailRequest, right: DetailRequest): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "genre" && right.kind === "genre") return left.genre === right.genre;
+  if (left.kind === "album" && right.kind === "album") return left.id === right.id;
+  return left.kind === "artist" && right.kind === "artist" && left.id === right.id;
+}
 
 export default function App() {
   const navidrome = useNavidrome();
@@ -57,6 +67,7 @@ export default function App() {
   });
   const [view, setView] = useState<AppView>("home");
   const [previewThemeId, setPreviewThemeId] = useState<ThemePreviewId>("auto");
+  const [artistFilter, setArtistFilter] = useState("");
   const [detailRequest, setDetailRequest] = useState<DetailRequest>();
   const [detailHistory, setDetailHistory] = useState<NavigationEntry[]>([]);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -64,6 +75,7 @@ export default function App() {
   const [notice, setNotice] = useState<string>();
   const [toastVisible, setToastVisible] = useState(false);
   const pendingPlay = useRef(false);
+  const pendingScrollPosition = useRef<number | undefined>(0);
   const [playRequest, setPlayRequest] = useState(0);
   const automaticTheme = resolveThemeForTrack(currentTrack, visualPreferences.genreMap);
   const theme = previewThemeId === "auto"
@@ -101,20 +113,67 @@ export default function App() {
     void player.play();
   }, [currentTrack?.id, playRequest]);
 
+  useLayoutEffect(() => {
+    if (!navidrome.isConnected) return;
+    const main = document.getElementById("main-content");
+    main?.focus({ preventScroll: true });
+  }, [detailRequest, navidrome.isConnected, view]);
+
+  useLayoutEffect(() => {
+    if (!navidrome.isConnected) return;
+    const target = pendingScrollPosition.current;
+    if (target === undefined) return;
+    const main = document.getElementById("main-content");
+    if (main) main.scrollTop = target;
+    if (document.scrollingElement) document.scrollingElement.scrollTop = target;
+
+    const appliedPosition = Math.max(
+      main?.scrollTop ?? 0,
+      document.scrollingElement?.scrollTop ?? 0,
+    );
+    const contentIsGrowing =
+      navidrome.detailLoading ||
+      navidrome.artistTracksLoading ||
+      (view === "artists" && navidrome.artistsLoading);
+    if (target === 0 || appliedPosition >= target - 1 || !contentIsGrowing) {
+      pendingScrollPosition.current = undefined;
+    }
+  }, [
+    detailRequest,
+    navidrome.activeAlbum?.song?.length,
+    navidrome.activeArtistTracks.length,
+    navidrome.artistTracksLoading,
+    navidrome.artistsLoading,
+    navidrome.detailLoading,
+    navidrome.genreTracks.length,
+    navidrome.isConnected,
+    view,
+  ]);
+
+  function readScrollPosition(): number {
+    const main = document.getElementById("main-content");
+    return Math.max(main?.scrollTop ?? 0, document.scrollingElement?.scrollTop ?? 0);
+  }
+
   function coverUrl(coverArt?: string, size?: number): string {
     return navidrome.mediaUrls?.cover(coverArt, size) ?? "";
   }
 
   function navigate(nextView: PrimaryView): void {
     navidrome.clearDetail();
+    pendingScrollPosition.current = 0;
     setDetailRequest(undefined);
     setDetailHistory([]);
     setView(nextView);
+    if (nextView === "artists" && !navidrome.artistDirectory && !navidrome.artistsLoading) {
+      void navidrome.loadArtists();
+    }
   }
 
-  function currentNavigationEntry(): NavigationEntry {
+  function currentNavigationEntry(): NavigationTarget {
     if (
       view === "home" ||
+      view === "artists" ||
       view === "search" ||
       view === "favorites" ||
       view === "studio"
@@ -126,15 +185,28 @@ export default function App() {
       : { view: "home" };
   }
 
-  function loadDetail(request: DetailRequest): void {
-    if (request.kind === "album") void navidrome.openAlbum(request.id);
-    else if (request.kind === "artist") void navidrome.openArtist(request.id);
-    else void navidrome.openGenre(request.genre);
+  function loadDetail(request: DetailRequest, refresh = false): void {
+    if (request.kind === "album") {
+      if (refresh) void navidrome.openAlbum(request.id, true);
+      else void navidrome.openAlbum(request.id);
+    } else if (request.kind === "artist") {
+      if (refresh) void navidrome.openArtist(request.id, true);
+      else void navidrome.openArtist(request.id);
+    } else {
+      void navidrome.openGenre(request.genre);
+    }
   }
 
   function openDetail(request: DetailRequest): void {
-    const previous = currentNavigationEntry();
+    if (detailRequest && view === request.kind && detailRequestsMatch(detailRequest, request)) {
+      return;
+    }
+    const previous: NavigationEntry = {
+      ...currentNavigationEntry(),
+      scrollPosition: readScrollPosition(),
+    };
     setDetailHistory((entries) => [...entries, previous]);
+    pendingScrollPosition.current = 0;
     setDetailRequest(request);
     setView(request.kind);
     loadDetail(request);
@@ -145,6 +217,7 @@ export default function App() {
   }
 
   function openArtist(artist: Artist): void {
+    setQueueOpen(false);
     openDetail({ kind: "artist", id: artist.id });
   }
 
@@ -154,7 +227,7 @@ export default function App() {
 
   function retryDetail(): void {
     if (!detailRequest) return;
-    loadDetail(detailRequest);
+    loadDetail(detailRequest, true);
   }
 
   function closeDetail(): void {
@@ -162,11 +235,13 @@ export default function App() {
     navidrome.clearDetail();
     setDetailHistory((entries) => entries.slice(0, -1));
     if (previous && "request" in previous) {
+      pendingScrollPosition.current = previous.scrollPosition;
       setDetailRequest(previous.request);
       setView(previous.view);
       loadDetail(previous.request);
       return;
     }
+    pendingScrollPosition.current = previous?.scrollPosition ?? 0;
     setDetailRequest(undefined);
     setView(previous?.view ?? "home");
   }
@@ -221,6 +296,8 @@ export default function App() {
     navidrome.disconnect();
     setView("home");
     setPreviewThemeId("auto");
+    setArtistFilter("");
+    pendingScrollPosition.current = 0;
     setDetailRequest(undefined);
     setDetailHistory([]);
     setQueueOpen(false);
@@ -233,6 +310,22 @@ export default function App() {
   }
 
   function renderView() {
+    if (view === "artists") {
+      return (
+        <ArtistsView
+          directory={navidrome.artistDirectory}
+          loading={navidrome.artistsLoading}
+          error={navidrome.artistsError}
+          coverUrl={coverUrl}
+          themeAsset={theme.scene.foregroundAsset}
+          activeCoverUrl={coverUrl(currentTrack?.coverArt, 512)}
+          filter={artistFilter}
+          onFilterChange={setArtistFilter}
+          onRetry={() => void navidrome.loadArtists()}
+          onOpenArtist={openArtist}
+        />
+      );
+    }
     if (view === "studio") {
       return (
         <ThemeStudio
@@ -322,6 +415,9 @@ export default function App() {
         kind={view as DetailKind}
         album={navidrome.activeAlbum}
         artist={navidrome.activeArtist}
+        artistTracks={navidrome.activeArtistTracks}
+        artistTracksLoading={navidrome.artistTracksLoading}
+        artistTracksWarning={navidrome.artistTracksWarning}
         genre={navidrome.activeGenre}
         genreTracks={navidrome.genreTracks}
         loading={navidrome.detailLoading}
@@ -334,6 +430,7 @@ export default function App() {
         onBack={closeDetail}
         onRetry={retryDetail}
         onOpenAlbum={openAlbum}
+        onOpenArtist={openArtist}
         onPlay={requestPlayback}
         onAddToQueue={addToQueue}
         onToggleStar={toggleStar}
@@ -429,6 +526,7 @@ export default function App() {
             queueOpen={queueOpen}
             isStarred={currentTrack ? navidrome.isTrackStarred(currentTrack) : false}
             onToggleStar={currentTrack ? () => toggleStar(currentTrack) : undefined}
+            onOpenArtist={openArtist}
             onToggleQueue={() => setQueueOpen((value) => !value)}
           />
           <QueuePanel

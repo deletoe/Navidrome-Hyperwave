@@ -118,6 +118,130 @@ describe("Subsonic endpoint client", () => {
     expect(init).not.toMatchObject({ credentials: "include" });
   });
 
+  it("normalizes both levels of the indexed artist directory", async () => {
+    const fetcher = vi.fn(async (_input: string, _init?: RequestInit) =>
+      response({
+        artists: {
+          ignoredArticles: "The El La",
+          index: {
+            name: "S",
+            artist: { id: "artist-1", name: "Signal Club", albumCount: 2 },
+          },
+        },
+      }),
+    );
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test/navidrome/",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.getArtists("folder 1")).resolves.toEqual({
+      ignoredArticles: "The El La",
+      index: [
+        {
+          name: "S",
+          artist: [{ id: "artist-1", name: "Signal Club", albumCount: 2 }],
+        },
+      ],
+    });
+    const url = new URL(String(fetcher.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/navidrome/rest/getArtists.view");
+    expect(url.searchParams.get("musicFolderId")).toBe("folder 1");
+  });
+
+  it("normalizes omitted and mixed artist directory lists", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(response({ artists: {} }))
+      .mockResolvedValueOnce(
+        response({
+          artists: {
+            index: [
+              { name: "#" },
+              {
+                name: "A",
+                artist: [
+                  { id: "artist-1", name: "Alpha" },
+                  { id: "artist-2", name: "Arc" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.getArtists()).resolves.toEqual({ index: [] });
+    await expect(client.getArtists()).resolves.toEqual({
+      index: [
+        { name: "#", artist: [] },
+        {
+          name: "A",
+          artist: [
+            { id: "artist-1", name: "Alpha" },
+            { id: "artist-2", name: "Arc" },
+          ],
+        },
+      ],
+    });
+    expect(new URL(String(fetcher.mock.calls[0]?.[0])).searchParams.has("musicFolderId")).toBe(false);
+  });
+
+  it("normalizes singleton albums and songs in artist and album details", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        response({ artist: { id: "artist-1", name: "Signal Club", album: { id: "a", name: "A" } } }),
+      )
+      .mockResolvedValueOnce(
+        response({ album: { id: "a", name: "A", song: { id: "track-1", title: "One" } } }),
+      );
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.getArtist("artist-1")).resolves.toMatchObject({
+      album: [{ id: "a", name: "A" }],
+    });
+    await expect(client.getAlbum("a")).resolves.toMatchObject({
+      song: [{ id: "track-1", title: "One" }],
+    });
+  });
+
+  it("passes an abort signal through JSON detail requests", async () => {
+    const fetcher = vi.fn((_input: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), {
+          once: true,
+        });
+      }),
+    );
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+    const controller = new AbortController();
+
+    const request = client.getAlbum("a", controller.signal);
+    await Promise.resolve();
+    controller.abort(new DOMException("Stopped", "AbortError"));
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetcher.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
   it("creates authenticated cover and stream URLs", () => {
     const client = createSubsonicClient({
       serverUrl: "http://music.test",

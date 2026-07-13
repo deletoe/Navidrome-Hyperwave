@@ -22,6 +22,7 @@ import {
   SkipForward,
   Star,
   Trash2,
+  UsersRound,
   Volume2,
   VolumeX,
   X,
@@ -54,6 +55,7 @@ const ICONS = {
   shuffle: Shuffle,
   studio: Palette,
   trash: Trash2,
+  artists: UsersRound,
   volume: Volume2,
 } satisfies Record<string, LucideIcon>;
 

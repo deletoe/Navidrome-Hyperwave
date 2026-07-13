@@ -1,8 +1,9 @@
 import { useId } from "react";
 
 import { formatDuration } from "../lib/format";
-import type { Track } from "../types";
+import type { Artist, Track } from "../types";
 import { AppIcon } from "./AppIcon";
+import { ArtistLinks } from "./ArtistLinks";
 import { Artwork } from "./Artwork";
 
 export interface TrackListProps {
@@ -12,6 +13,7 @@ export interface TrackListProps {
   onPlay: (track: Track, index: number, tracks: Track[]) => void;
   onAddToQueue: (track: Track) => void;
   onToggleStar: (track: Track) => void;
+  onOpenArtist?: (artist: Artist) => void;
   currentTrackId?: string;
   coverUrl?: (coverArt?: string, size?: number) => string;
   loading?: boolean;
@@ -27,6 +29,7 @@ export function TrackList({
   onPlay,
   onAddToQueue,
   onToggleStar,
+  onOpenArtist,
   currentTrackId,
   coverUrl,
   loading = false,
@@ -73,7 +76,7 @@ export function TrackList({
       {tracks.length > 0 ? (
         <ol className="track-list__rows">
           {tracks.map((track, index) => {
-            const isStarred = starredIds.has(track.id) || Boolean(track.starred);
+            const isStarred = starredIds.has(track.id);
             const artist = track.displayArtist || track.artist || "Unknown artist";
             return (
               <li
@@ -92,9 +95,13 @@ export function TrackList({
                 </span>
                 <span className="track-row__identity">
                   <strong>{track.title}</strong>
-                  <span>
-                    {artist}
-                    {track.album ? ` · ${track.album}` : ""}
+                  <span className="track-row__meta">
+                    {onOpenArtist ? (
+                      <ArtistLinks entity={track} onOpenArtist={onOpenArtist} />
+                    ) : (
+                      artist
+                    )}
+                    {track.album ? <span> · {track.album}</span> : null}
                   </span>
                 </span>
                 <time className="track-row__duration" dateTime={`PT${track.duration ?? 0}S`}>

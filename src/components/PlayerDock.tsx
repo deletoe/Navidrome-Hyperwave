@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
 import { formatDuration } from "../lib/format";
-import type { Track } from "../types";
+import type { Artist, Track } from "../types";
 import { AppIcon } from "./AppIcon";
+import { ArtistLinks } from "./ArtistLinks";
 import { Artwork } from "./Artwork";
 
 export interface PlayerDockProps {
@@ -14,6 +15,7 @@ export interface PlayerDockProps {
   queueOpen: boolean;
   isStarred?: boolean;
   onToggleStar?: () => void;
+  onOpenArtist?: (artist: Artist) => void;
   onToggleQueue: () => void;
 }
 
@@ -25,6 +27,7 @@ export function PlayerDock({
   queueOpen,
   isStarred = false,
   onToggleStar,
+  onOpenArtist,
   onToggleQueue,
 }: PlayerDockProps) {
   const [expanded, setExpanded] = useState(false);
@@ -94,6 +97,11 @@ export function PlayerDock({
   function openQueueFromSheet(): void {
     closeExpanded(true);
     onToggleQueue();
+  }
+
+  function openArtistFromSheet(artist: Artist): void {
+    closeExpanded(false);
+    onOpenArtist?.(artist);
   }
 
   return (
@@ -274,7 +282,15 @@ export function PlayerDock({
           />
           <p className="eyebrow">Full signal</p>
           <h2>{title}</h2>
-          <p>{artist}</p>
+          {currentTrack && onOpenArtist ? (
+            <ArtistLinks
+              className="player-sheet__artist-links"
+              entity={currentTrack}
+              onOpenArtist={openArtistFromSheet}
+            />
+          ) : (
+            <p>{artist}</p>
+          )}
           <p>{currentTrack?.album || "Unknown album"}</p>
           <button
             className={`player-sheet__favorite icon-button${isStarred ? " is-starred" : ""}`}
