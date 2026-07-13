@@ -150,6 +150,16 @@
   letter-spacing: 0.12em;
 }
 
+.primary-nav__icon {
+  display: grid;
+  place-items: center;
+}
+
+.primary-nav__icon .app-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
 .primary-nav button.is-active {
   border-color: var(--theme-primary);
   background: color-mix(in srgb, var(--theme-primary) 18%, var(--theme-surface-strong));
@@ -520,6 +530,12 @@
   white-space: nowrap;
 }
 
+.track-row__actions .icon-button {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
+}
+
 button.is-starred,
 button[aria-pressed="true"] {
   border-color: var(--theme-secondary);
@@ -701,6 +717,12 @@ button[aria-pressed="true"] {
   white-space: nowrap;
 }
 
+.player-controls .icon-button,
+.player-sheet__controls .icon-button {
+  width: 100%;
+  padding: 0;
+}
+
 .player-sliders {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -718,6 +740,11 @@ button[aria-pressed="true"] {
 
 .player-sliders button {
   grid-column: 1 / -1;
+}
+
+.player-sliders .icon-button {
+  grid-column: 3;
+  justify-self: end;
 }
 
 .player-error {
@@ -791,6 +818,11 @@ button[aria-pressed="true"] {
   text-overflow: ellipsis;
 }
 
+.player-sheet__controls .app-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
 .queue-panel {
   display: flex;
   flex-direction: column;
@@ -816,6 +848,15 @@ button[aria-pressed="true"] {
   font-size: 0.67rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.queue-panel__modes button[data-repeat-mode]:not([data-repeat-mode="off"]) {
+  border-color: var(--theme-secondary);
+  color: var(--theme-secondary);
+}
+
+.queue-panel__modes button[data-repeat-mode="off"] .app-icon {
+  opacity: 0.5;
 }
 
 .queue-panel > .inline-state {
@@ -878,6 +919,12 @@ button[aria-pressed="true"] {
   min-height: 2.25rem;
   padding-inline: 0.48rem;
   font-size: 0.65rem;
+}
+
+.queue-list__remove.icon-button {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  padding: 0;
 }
 
 .toast-region {
@@ -1368,12 +1415,6 @@ button[aria-pressed="true"] {
     min-height: 44px;
     padding: 0;
     overflow: hidden;
-    font-size: 0;
-  }
-
-  .mini-player .player-dock__track > button::before {
-    content: "Open";
-    font-size: 0.64rem;
   }
 
   .mini-player .player-controls {
@@ -1558,6 +1599,12 @@ button[aria-pressed="true"] {
     text-overflow: ellipsis;
   }
 
+  .track-row__actions .icon-button {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
+
   .search-form > div {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1617,6 +1664,10 @@ button[aria-pressed="true"] {
   .app select,
   .app textarea {
     min-height: 44px;
+  }
+
+  .app .icon-button {
+    min-width: 44px;
   }
 
   .toast-region {

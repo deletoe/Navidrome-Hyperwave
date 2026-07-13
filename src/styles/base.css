@@ -102,6 +102,51 @@ button:disabled {
   opacity: 0.48;
 }
 
+.app-icon {
+  display: block;
+  width: 1.125rem;
+  height: 1.125rem;
+  max-width: none;
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.button-with-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.48rem;
+}
+
+.button-with-icon--compact {
+  gap: 0.32rem;
+  padding-inline: 0.58rem;
+}
+
+.icon-button {
+  display: inline-grid;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  padding: 0;
+  place-items: center;
+}
+
+.icon-button--primary {
+  border-color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-primary) 18%, var(--theme-surface-strong));
+  color: var(--theme-primary);
+}
+
+.is-spinning {
+  animation: icon-spin 0.8s linear infinite;
+}
+
+@keyframes icon-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
 input,
 select,
 textarea {
@@ -235,5 +280,9 @@ output {
   .ambient-layer::after {
     animation: none !important;
     transform: none !important;
+  }
+
+  .is-spinning {
+    animation: none !important;
   }
 }

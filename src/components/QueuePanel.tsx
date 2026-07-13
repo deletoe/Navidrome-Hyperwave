@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type Dispatch } from "react";
 
 import { formatDuration } from "../lib/format";
 import type { QueueAction, QueueState, RepeatMode } from "../state/playerQueue";
+import { AppIcon } from "./AppIcon";
 
 export interface QueuePanelProps {
   queuePanelId: string;
@@ -104,34 +105,50 @@ export function QueuePanel({
         </div>
         {open ? (
           <button
+            className="icon-button"
             ref={closeRef}
             type="button"
             aria-label="Close playback queue"
+            title="Close playback queue"
             onClick={() => onCloseRef.current()}
           >
-            Close
+            <AppIcon name="close" />
           </button>
         ) : null}
       </header>
 
       <div className="queue-panel__modes" aria-label="Queue modes">
         <button
+          className="button-with-icon button-with-icon--compact"
           type="button"
           aria-pressed={state.shuffle}
+          aria-label={`Shuffle ${state.shuffle ? "on" : "off"}`}
           disabled={state.tracks.length < 2}
           onClick={() => dispatch({ type: "shuffle" })}
         >
-          Shuffle {state.shuffle ? "on" : "off"}
-        </button>
-        <button type="button" onClick={cycleRepeat}>
-          Repeat {state.repeatMode}
+          <AppIcon name="shuffle" />
+          Shuffle
         </button>
         <button
+          className="button-with-icon button-with-icon--compact"
           type="button"
+          aria-label={`Repeat mode ${state.repeatMode}`}
+          title={`Repeat mode: ${state.repeatMode}`}
+          data-repeat-mode={state.repeatMode}
+          onClick={cycleRepeat}
+        >
+          <AppIcon name={state.repeatMode === "one" ? "repeatOne" : "repeat"} />
+          Repeat
+        </button>
+        <button
+          className="button-with-icon button-with-icon--compact"
+          type="button"
+          aria-label="Clear queue"
           disabled={state.tracks.length === 0}
           onClick={() => dispatch({ type: "clear" })}
         >
-          Clear queue
+          <AppIcon name="trash" />
+          Clear
         </button>
       </div>
 
@@ -140,7 +157,8 @@ export function QueuePanel({
           <h3>The queue is empty</h3>
           <p>Use Add to queue beside any song, or play a full album or genre.</p>
           {open ? (
-            <button type="button" onClick={onClose}>
+            <button className="button-with-icon" type="button" onClick={onClose}>
+              <AppIcon name="back" />
               Return to the archive
             </button>
           ) : null}
@@ -171,12 +189,13 @@ export function QueuePanel({
                   </time>
                 </button>
                 <button
-                  className="queue-list__remove"
+                  className="queue-list__remove icon-button"
                   type="button"
                   aria-label={`Remove ${track.title} from queue`}
+                  title={`Remove ${track.title} from queue`}
                   onClick={() => dispatch({ type: "remove", index })}
                 >
-                  Remove
+                  <AppIcon name="trash" />
                 </button>
               </li>
             );

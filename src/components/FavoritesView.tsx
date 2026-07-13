@@ -1,6 +1,7 @@
 import { formatCount } from "../lib/format";
 import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
+import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
 import { TrackList } from "./TrackList";
 
@@ -46,7 +47,8 @@ export function FavoritesView({
           <h1>Your favorites</h1>
           <p>{formatCount(total)} saved songs, albums, and artists in this archive.</p>
         </div>
-        <button type="button" onClick={onRetry} disabled={loading}>
+        <button className="button-with-icon" type="button" onClick={onRetry} disabled={loading}>
+          <AppIcon name={loading ? "loading" : "refresh"} className={loading ? "is-spinning" : ""} />
           {loading ? "Refreshing…" : "Refresh favorites"}
         </button>
       </header>
@@ -56,7 +58,8 @@ export function FavoritesView({
         <div className="inline-state inline-state--error" role="alert">
           <strong>Favorites are temporarily unavailable</strong>
           <p>{error}</p>
-          <button type="button" onClick={onRetry}>
+          <button className="button-with-icon" type="button" onClick={onRetry}>
+            <AppIcon name="retry" />
             Retry favorites
           </button>
         </div>
@@ -66,7 +69,8 @@ export function FavoritesView({
           <p className="eyebrow">A quiet constellation</p>
           <h2>No favorites yet</h2>
           <p>Use the Star action beside any song, then return here.</p>
-          <button type="button" onClick={onRetry}>
+          <button className="button-with-icon" type="button" onClick={onRetry}>
+            <AppIcon name="refresh" />
             Check again
           </button>
         </div>

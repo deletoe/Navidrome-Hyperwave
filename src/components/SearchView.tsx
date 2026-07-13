@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { formatCount } from "../lib/format";
 import type { Album, Artist, SearchResult, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
+import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
 import { TrackList } from "./TrackList";
 
@@ -73,7 +74,8 @@ export function SearchView({
             placeholder="Song, album, artist…"
             onChange={(event) => setDraft(event.currentTarget.value)}
           />
-          <button type="submit" disabled={loading || !draft.trim()}>
+          <button className="button-with-icon" type="submit" disabled={loading || !draft.trim()}>
+            <AppIcon name={loading ? "loading" : "search"} className={loading ? "is-spinning" : ""} />
             {loading ? "Searching…" : "Search archive"}
           </button>
         </div>
@@ -84,7 +86,13 @@ export function SearchView({
         <div className="inline-state inline-state--error" role="alert">
           <strong>Search could not be completed</strong>
           <p>{error}</p>
-          <button type="button" onClick={() => onSearch(draft)} disabled={!draft.trim()}>
+          <button
+            className="button-with-icon"
+            type="button"
+            onClick={() => onSearch(draft)}
+            disabled={!draft.trim()}
+          >
+            <AppIcon name="retry" />
             Retry search
           </button>
         </div>
@@ -94,7 +102,12 @@ export function SearchView({
           <p className="eyebrow">Ready when you are</p>
           <h2>Start with a title, artist, or album</h2>
           <p>Your results will stay grouped by songs, albums, and artists.</p>
-          <button type="button" onClick={() => document.getElementById("archive-search")?.focus()}>
+          <button
+            className="button-with-icon"
+            type="button"
+            onClick={() => document.getElementById("archive-search")?.focus()}
+          >
+            <AppIcon name="search" />
             Focus search
           </button>
         </div>
@@ -104,7 +117,12 @@ export function SearchView({
           <p className="eyebrow">No match</p>
           <h2>Nothing found for “{query}”</h2>
           <p>Try fewer words, a different spelling, or an artist name.</p>
-          <button type="button" onClick={() => document.getElementById("archive-search")?.focus()}>
+          <button
+            className="button-with-icon"
+            type="button"
+            onClick={() => document.getElementById("archive-search")?.focus()}
+          >
+            <AppIcon name="revise" />
             Revise search
           </button>
         </div>

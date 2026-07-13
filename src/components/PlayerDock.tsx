@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
 import { formatDuration } from "../lib/format";
 import type { Track } from "../types";
+import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
 
 export interface PlayerDockProps {
@@ -108,13 +109,15 @@ export function PlayerDock({
           <h2 id="now-playing-heading">Playback signal</h2>
         </div>
         <button
+          className="icon-button"
           type="button"
           aria-expanded={queueOpen}
           aria-controls={queuePanelId}
           aria-label={`${queueOpen ? "Close" : "Open"} playback queue`}
+          title={`${queueOpen ? "Close" : "Open"} playback queue`}
           onClick={onToggleQueue}
         >
-          Queue
+          <AppIcon name="queue" />
         </button>
       </header>
 
@@ -131,42 +134,61 @@ export function PlayerDock({
           <span>{currentTrack?.album || "Archive ready"}</span>
         </div>
         <button
-          className={`player-dock__favorite${isStarred ? " is-starred" : ""}`}
+          className={`player-dock__favorite icon-button${isStarred ? " is-starred" : ""}`}
           type="button"
           aria-pressed={isStarred}
           aria-label={`${isStarred ? "Unstar" : "Star"} ${title}`}
+          title={`${isStarred ? "Unstar" : "Star"} ${title}`}
           disabled={!currentTrack || !onToggleStar}
           onClick={onToggleStar}
         >
-          {isStarred ? "Unstar" : "Star"}
+          <AppIcon name="favorite" filled={isStarred} />
         </button>
         <button
+          className="icon-button"
           ref={expandRef}
           type="button"
           aria-expanded={expanded}
           aria-controls={expandedId}
           aria-label="Open now playing"
+          title="Open now playing"
           disabled={!currentTrack}
           onClick={() => setExpanded(true)}
         >
-          Expand
+          <AppIcon name="expand" />
         </button>
       </div>
 
       <div className="player-controls" aria-label="Playback controls">
-        <button type="button" onClick={player.previous} disabled={!currentTrack}>
-          Previous track
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Previous track"
+          title="Previous track"
+          onClick={player.previous}
+          disabled={!currentTrack}
+        >
+          <AppIcon name="previous" />
         </button>
         <button
+          className="icon-button icon-button--primary"
           type="button"
           aria-label={`${player.isPlaying ? "Pause" : "Play"} ${title}`}
+          title={`${player.isPlaying ? "Pause" : "Play"} ${title}`}
           onClick={() => void player.toggle()}
           disabled={!currentTrack}
         >
-          {player.isPlaying ? "Pause" : "Play"}
+          <AppIcon name={player.isPlaying ? "pause" : "play"} />
         </button>
-        <button type="button" onClick={player.next} disabled={!currentTrack}>
-          Next track
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Next track"
+          title="Next track"
+          onClick={player.next}
+          disabled={!currentTrack}
+        >
+          <AppIcon name="next" />
         </button>
       </div>
 
@@ -198,15 +220,28 @@ export function PlayerDock({
           aria-valuetext={`${Math.round((player.muted ? 0 : player.volume) * 100)} percent`}
           onChange={(event) => player.setVolume(event.currentTarget.valueAsNumber)}
         />
-        <button type="button" aria-pressed={player.muted} onClick={player.toggleMute}>
-          {player.muted ? "Unmute" : "Mute"}
+        <button
+          className="icon-button"
+          type="button"
+          aria-pressed={player.muted}
+          aria-label={player.muted ? "Unmute" : "Mute"}
+          title={player.muted ? "Unmute" : "Mute"}
+          onClick={player.toggleMute}
+        >
+          <AppIcon name={player.muted ? "mute" : "volume"} />
         </button>
       </div>
 
       {player.error ? (
         <div className="player-error" role="alert">
           <p>{player.error}</p>
-          <button type="button" onClick={player.next} disabled={!currentTrack}>
+          <button
+            className="button-with-icon"
+            type="button"
+            onClick={player.next}
+            disabled={!currentTrack}
+          >
+            <AppIcon name="next" />
             Try next track
           </button>
         </div>
@@ -222,12 +257,14 @@ export function PlayerDock({
           aria-label="Now playing"
         >
           <button
+            className="icon-button"
             ref={closeRef}
             type="button"
             aria-label="Close now playing"
+            title="Close now playing"
             onClick={() => closeExpanded(true)}
           >
-            Close
+            <AppIcon name="close" />
           </button>
           <Artwork
             className="player-sheet__artwork"
@@ -240,32 +277,53 @@ export function PlayerDock({
           <p>{artist}</p>
           <p>{currentTrack?.album || "Unknown album"}</p>
           <button
-            className={`player-sheet__favorite${isStarred ? " is-starred" : ""}`}
+            className={`player-sheet__favorite icon-button${isStarred ? " is-starred" : ""}`}
             type="button"
             aria-pressed={isStarred}
             aria-label={`${isStarred ? "Unstar" : "Star"} ${title}`}
+            title={`${isStarred ? "Unstar" : "Star"} ${title}`}
             disabled={!currentTrack || !onToggleStar}
             onClick={onToggleStar}
           >
-            {isStarred ? "Unstar" : "Star"}
+            <AppIcon name="favorite" filled={isStarred} />
           </button>
           <div className="player-sheet__controls" aria-label="Expanded playback controls">
-            <button type="button" onClick={player.previous}>
-              Previous track
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Previous track"
+              title="Previous track"
+              onClick={player.previous}
+            >
+              <AppIcon name="previous" />
             </button>
-            <button type="button" onClick={() => void player.toggle()}>
-              {player.isPlaying ? "Pause playback" : "Start playback"}
+            <button
+              className="icon-button icon-button--primary"
+              type="button"
+              aria-label={player.isPlaying ? "Pause playback" : "Start playback"}
+              title={player.isPlaying ? "Pause playback" : "Start playback"}
+              onClick={() => void player.toggle()}
+            >
+              <AppIcon name={player.isPlaying ? "pause" : "play"} />
             </button>
-            <button type="button" onClick={player.next}>
-              Next track
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Next track"
+              title="Next track"
+              onClick={player.next}
+            >
+              <AppIcon name="next" />
             </button>
           </div>
           <button
+            className="button-with-icon"
             type="button"
             aria-expanded={queueOpen}
             aria-controls={queuePanelId}
             onClick={openQueueFromSheet}
           >
+            <AppIcon name="queue" />
             {queueOpen ? "Close queue" : "Open queue"}
           </button>
         </div>

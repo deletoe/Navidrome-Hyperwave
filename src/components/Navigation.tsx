@@ -1,4 +1,5 @@
 import type { ServerInfo } from "../types";
+import { AppIcon, type AppIconName } from "./AppIcon";
 
 export type AppView = "home" | "search" | "favorites" | "album" | "artist" | "genre";
 export type PrimaryView = Extract<AppView, "home" | "search" | "favorites">;
@@ -9,10 +10,10 @@ export interface NavigationProps {
   onNavigate: (view: PrimaryView) => void;
   onDisconnect: () => void;
 }
-const destinations: Array<{ id: PrimaryView; label: string; signal: string }> = [
-  { id: "home", label: "Home", signal: "01" },
-  { id: "search", label: "Search", signal: "02" },
-  { id: "favorites", label: "Favorites", signal: "03" },
+const destinations: Array<{ id: PrimaryView; label: string; icon: AppIconName }> = [
+  { id: "home", label: "Home", icon: "home" },
+  { id: "search", label: "Search", icon: "search" },
+  { id: "favorites", label: "Favorites", icon: "favorite" },
 ];
 
 export function Navigation({ view, serverInfo, onNavigate, onDisconnect }: NavigationProps) {
@@ -37,7 +38,9 @@ export function Navigation({ view, serverInfo, onNavigate, onDisconnect }: Navig
             aria-current={view === destination.id ? "page" : undefined}
             onClick={() => onNavigate(destination.id)}
           >
-            <span aria-hidden="true">{destination.signal}</span>
+            <span className="primary-nav__icon" aria-hidden="true">
+              <AppIcon name={destination.icon} />
+            </span>
             <span>{destination.label}</span>
           </button>
         ))}
@@ -61,7 +64,8 @@ export function Navigation({ view, serverInfo, onNavigate, onDisconnect }: Navig
             <dd>{serverInfo?.serverVersion || serverInfo?.version || "Ready"}</dd>
           </div>
         </dl>
-        <button type="button" onClick={onDisconnect}>
+        <button className="button-with-icon" type="button" onClick={onDisconnect}>
+          <AppIcon name="disconnect" />
           Disconnect
         </button>
       </section>

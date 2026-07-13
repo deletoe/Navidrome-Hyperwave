@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 
 import type { ConnectionInput } from "../hooks/useNavidrome";
 import type { AuthMode } from "../types";
+import { AppIcon } from "./AppIcon";
 
 export interface ConnectionGateProps {
   rememberedServerUrl: string;
@@ -127,7 +128,8 @@ export function ConnectionGate({
             </div>
           ) : null}
 
-          <button type="submit" disabled={isConnecting}>
+          <button className="button-with-icon" type="submit" disabled={isConnecting}>
+            <AppIcon name={isConnecting ? "loading" : "connect"} className={isConnecting ? "is-spinning" : ""} />
             {isConnecting ? "Connecting…" : "Connect to archive"}
           </button>
           {isConnecting ? <p role="status">Contacting your Navidrome server…</p> : null}

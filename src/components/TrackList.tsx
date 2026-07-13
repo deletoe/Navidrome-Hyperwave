@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import { formatDuration } from "../lib/format";
 import type { Track } from "../types";
+import { AppIcon } from "./AppIcon";
 
 export interface TrackListProps {
   title: string;
@@ -47,7 +48,8 @@ export function TrackList({
         <div className="inline-state inline-state--error" role="alert">
           <p>{error}</p>
           {onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button className="button-with-icon" type="button" onClick={onRetry}>
+              <AppIcon name="retry" />
               Retry {title}
             </button>
           ) : null}
@@ -57,7 +59,8 @@ export function TrackList({
         <div className="inline-state inline-state--empty">
           <p>{emptyMessage}</p>
           {onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button className="button-with-icon" type="button" onClick={onRetry}>
+              <AppIcon name="refresh" />
               Refresh {title}
             </button>
           ) : null}
@@ -90,27 +93,32 @@ export function TrackList({
                 </time>
                 <span className="track-row__actions">
                   <button
+                    className="icon-button"
                     type="button"
                     aria-label={`Play ${track.title}`}
+                    title={`Play ${track.title}`}
                     onClick={() => onPlay(track, index, tracks)}
                   >
-                    Play
+                    <AppIcon name="play" />
                   </button>
                   <button
+                    className="icon-button"
                     type="button"
                     aria-label={`Add to queue: ${track.title}`}
+                    title={`Add ${track.title} to queue`}
                     onClick={() => onAddToQueue(track)}
                   >
-                    Add to queue
+                    <AppIcon name="queueAdd" />
                   </button>
                   <button
-                    className={isStarred ? "is-starred" : undefined}
+                    className={`icon-button${isStarred ? " is-starred" : ""}`}
                     type="button"
                     aria-pressed={isStarred}
                     aria-label={`${isStarred ? "Unstar" : "Star"} ${track.title}`}
+                    title={`${isStarred ? "Unstar" : "Star"} ${track.title}`}
                     onClick={() => onToggleStar(track)}
                   >
-                    {isStarred ? "Unstar" : "Star"}
+                    <AppIcon name="favorite" filled={isStarred} />
                   </button>
                 </span>
               </li>

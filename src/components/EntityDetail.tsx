@@ -1,6 +1,7 @@
 import { formatCount, formatDuration } from "../lib/format";
 import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
+import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
 import { TrackList } from "./TrackList";
 
@@ -57,7 +58,8 @@ export function EntityDetail({
 
   return (
     <div className="view view--detail" aria-busy={loading}>
-      <button className="detail-back" type="button" onClick={onBack}>
+      <button className="detail-back button-with-icon" type="button" onClick={onBack}>
+        <AppIcon name="back" />
         Back to previous view
       </button>
 
@@ -66,7 +68,8 @@ export function EntityDetail({
           <p className="eyebrow">Resolving archive index</p>
           <h1>Loading details…</h1>
           <p>The previous view is still one step away.</p>
-          <button type="button" onClick={onBack}>
+          <button className="button-with-icon" type="button" onClick={onBack}>
+            <AppIcon name="back" />
             Cancel and go back
           </button>
         </div>
@@ -76,7 +79,8 @@ export function EntityDetail({
           <p className="eyebrow">Detail request failed</p>
           <h1>This archive entry could not be opened</h1>
           <p>{error}</p>
-          <button type="button" onClick={onRetry}>
+          <button className="button-with-icon" type="button" onClick={onRetry}>
+            <AppIcon name="retry" />
             Retry details
           </button>
         </div>
@@ -86,7 +90,8 @@ export function EntityDetail({
           <p className="eyebrow">Entry unavailable</p>
           <h1>No details were returned</h1>
           <p>The archive may have changed since this item was listed.</p>
-          <button type="button" onClick={onRetry}>
+          <button className="button-with-icon" type="button" onClick={onRetry}>
+            <AppIcon name="retry" />
             Try this entry again
           </button>
         </div>
@@ -112,17 +117,21 @@ export function EntityDetail({
               </p>
               <div className="collection-actions">
                 <button
+                  className="button-with-icon"
                   type="button"
                   onClick={() => onPlayCollection(albumTracks)}
                   disabled={albumTracks.length === 0}
                 >
+                  <AppIcon name="playCircle" />
                   Play album
                 </button>
                 <button
+                  className="button-with-icon"
                   type="button"
                   onClick={() => onAddCollection(albumTracks)}
                   disabled={albumTracks.length === 0}
                 >
+                  <AppIcon name="queueAdd" />
                   Add album to queue
                 </button>
               </div>
@@ -177,17 +186,21 @@ export function EntityDetail({
               <p>{formatCount(genreTracks.length)} songs selected from this archive.</p>
               <div className="collection-actions">
                 <button
+                  className="button-with-icon"
                   type="button"
                   onClick={() => onPlayCollection(genreTracks)}
                   disabled={genreTracks.length === 0}
                 >
+                  <AppIcon name="playCircle" />
                   Play genre
                 </button>
                 <button
+                  className="button-with-icon"
                   type="button"
                   onClick={() => onAddCollection(genreTracks)}
                   disabled={genreTracks.length === 0}
                 >
+                  <AppIcon name="queueAdd" />
                   Add genre to queue
                 </button>
               </div>

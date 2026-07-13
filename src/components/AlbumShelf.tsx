@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import { formatCount, formatDuration } from "../lib/format";
 import type { Album } from "../types";
+import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
 
 export interface AlbumShelfProps {
@@ -41,7 +42,8 @@ export function AlbumShelf({
         <div className="inline-state inline-state--error" role="alert">
           <p>{error}</p>
           {onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button className="button-with-icon" type="button" onClick={onRetry}>
+              <AppIcon name="retry" />
               Retry {title}
             </button>
           ) : null}
@@ -51,7 +53,8 @@ export function AlbumShelf({
         <div className="inline-state inline-state--empty">
           <p>{emptyMessage}</p>
           {onRetry ? (
-            <button type="button" onClick={onRetry}>
+            <button className="button-with-icon" type="button" onClick={onRetry}>
+              <AppIcon name="refresh" />
               Refresh {title}
             </button>
           ) : null}

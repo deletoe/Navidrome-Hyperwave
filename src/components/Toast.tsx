@@ -1,3 +1,5 @@
+import { AppIcon } from "./AppIcon";
+
 export interface ToastProps {
   message?: string;
   tone?: "info" | "success" | "error";
@@ -13,8 +15,14 @@ export function Toast({ message, tone = "info", onDismiss }: ToastProps) {
     <div className="toast-region" aria-live={tone === "error" ? "assertive" : "polite"}>
       <div className={`toast toast--${tone}`} role={tone === "error" ? "alert" : "status"}>
         <p>{message}</p>
-        <button type="button" aria-label="Dismiss notification" onClick={onDismiss}>
-          Dismiss
+        <button
+          className="icon-button"
+          type="button"
+          aria-label="Dismiss notification"
+          title="Dismiss notification"
+          onClick={onDismiss}
+        >
+          <AppIcon name="close" />
         </button>
       </div>
     </div>

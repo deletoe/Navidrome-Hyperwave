@@ -2,6 +2,7 @@ import { formatCount } from "../lib/format";
 import type { HomeSection, HomeState } from "../hooks/useNavidrome";
 import type { Album } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
+import { AppIcon } from "./AppIcon";
 
 export interface HomeViewProps {
   home: HomeState;
@@ -29,7 +30,13 @@ export function HomeView({
           <h1>Your archive, in motion</h1>
           <p>Move between recent arrivals, deep cuts, familiar records, and every genre channel.</p>
         </div>
-        <button type="button" onClick={() => onRetry()} disabled={home.loading}>
+        <button
+          className="button-with-icon"
+          type="button"
+          onClick={() => onRetry()}
+          disabled={home.loading}
+        >
+          <AppIcon name={home.loading ? "loading" : "refresh"} className={home.loading ? "is-spinning" : ""} />
           {home.loading ? "Refreshing…" : "Refresh archive"}
         </button>
       </header>
@@ -83,7 +90,8 @@ export function HomeView({
         {home.warnings.genres ? (
           <div className="inline-state inline-state--error" role="alert">
             <p>{home.warnings.genres}</p>
-            <button type="button" onClick={() => onRetry("genres")}>
+            <button className="button-with-icon" type="button" onClick={() => onRetry("genres")}>
+              <AppIcon name="retry" />
               Retry genres
             </button>
           </div>
@@ -94,7 +102,8 @@ export function HomeView({
         home.genres.length === 0 ? (
           <div className="inline-state inline-state--empty">
             <p>No genres were returned by this archive.</p>
-            <button type="button" onClick={() => onRetry("genres")}>
+            <button className="button-with-icon" type="button" onClick={() => onRetry("genres")}>
+              <AppIcon name="refresh" />
               Refresh genres
             </button>
           </div>

@@ -1,6 +1,6 @@
 # My Navidrome 5.6 Verification
 
-Verified locally on 2026-07-11 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
+Verified locally on 2026-07-13 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
 
 ## Final automated gate
 
@@ -12,18 +12,18 @@ npm run test:run && npm run typecheck && npm run build && npm audit --audit-leve
 
 Result:
 
-- Vitest 4.1.10: 9 test files passed, 114 tests passed, 0 failed.
+- Vitest 4.1.10: 10 test files passed, 115 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
-- Vite 6.4.3 production build: exit 0, 54 modules transformed.
-- Production bundle: CSS 64.35 kB (11.73 kB gzip), JS 265.01 kB (81.64 kB gzip).
+- Vite 6.4.3 production build: exit 0, 1,605 modules transformed.
+- Production bundle: CSS 65.61 kB (11.99 kB gzip), JS 280.21 kB (84.90 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now covers authentication and response parsing, stable media URLs, queue identity and boundaries, audio cleanup/scrobble/Media Session lifecycle, session concurrency, targeted retries, stale-detail invalidation, favorite rollback, modal focus coordination, seven unique scene contracts, generated-art CSS variables, inert transition rendering, committed-only theme sequencing, and real Cyber-to-Rock preservation of the App, shell, player, audio and focused DOM nodes.
+The suite now covers authentication and response parsing, stable media URLs, queue identity and boundaries, audio cleanup/scrobble/Media Session lifecycle, session concurrency, targeted retries, stale-detail invalidation, favorite rollback, modal focus coordination, decorative icon accessibility, seven unique scene contracts, generated-art CSS variables, inert transition rendering, committed-only theme sequencing, and real Cyber-to-Rock preservation of the App, shell, player, audio and focused DOM nodes.
 
 ## Local server and credential boundary
 
 - Address: `http://127.0.0.1:5173/`
-- Listener: Node PID `60325`, bound only to `127.0.0.1:5173`.
+- Listener: Node PID `6373`, bound only to `127.0.0.1:5173`.
 - Vite uses `strictPort: true`; it fails instead of silently selecting another port.
 - The user-authored credential document remains outside the build and is denied by the dev server: `/docs/requirements.md` returns HTTP 403.
 - Theme art is publicly served as intended; `/assets/themes/prism-ambient.webp` returns HTTP 200 with the expected 47,434-byte body.
@@ -111,6 +111,16 @@ At `390×844` and `360×800`:
 - Ambient art opacity reduced to 0.48 and real cover art remained smoothly rendered.
 
 The `390×844` Lounge screenshot confirmed that the brass club identity, serif display typography, curved hero, rounded set list, mini-player and bottom navigation remain readable as one coherent mobile composition.
+
+## Icon and control acceptance
+
+The real Cyber genre surface was rechecked at `1440×900` and `390×844` after the control-language pass. Track-row play, queue and favorite actions; player transport, volume, expansion and queue controls; queue removal; and dismiss/close actions now use icons without visible action prose. Navigation and consequential actions retain short labels beside their icons.
+
+- No icon-only button sampled in the live page had an empty accessible name or missing hover title.
+- Lucide SVG nodes are decorative (`aria-hidden=true`, `focusable=false`) so button names are announced once.
+- At 390px, the document width remained exactly 390px and no visible button was smaller than 44×44px.
+- The three track actions measured 109×44px each in their responsive grid, while showing only the play, queue-add and favorite symbols.
+- Repeat now keeps the short `Repeat` label, exposes its full mode through its accessible name and tooltip, and uses icon/state styling instead of appending `off`, `all` or `one` to the visible copy.
 
 ## Motion and accessibility
 

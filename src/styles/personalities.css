@@ -1153,10 +1153,6 @@
     text-align: center;
   }
 
-  [data-theme="lounge"] .primary-nav button > span:first-child {
-    display: none;
-  }
-
   [data-theme="lounge"] .content-panel {
     padding: 2rem clamp(2rem, 4vw, 5rem);
     background: linear-gradient(90deg, rgba(8, 13, 13, 0.72), rgba(8, 13, 13, 0.32));
