@@ -28,6 +28,7 @@ function navidromeClient(overrides: Partial<SubsonicClient> = {}): SubsonicClien
     star: vi.fn(async () => undefined),
     unstar: vi.fn(async () => undefined),
     scrobble: vi.fn(async () => undefined),
+    fetchCoverArt: vi.fn(async () => new Blob([], { type: "image/png" })),
     coverArtUrl: vi.fn((id) => `http://music.test/cover/${id}`),
     streamUrl: vi.fn((id) => `http://music.test/stream/${id}`),
     ...overrides,

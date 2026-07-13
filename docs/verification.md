@@ -12,13 +12,13 @@ npm run test:run && npm run typecheck && npm run build && npm audit --audit-leve
 
 Result:
 
-- Vitest 4.1.10: 12 test files passed, 124 tests passed, 0 failed.
+- Vitest 4.1.10: 18 test files passed, 164 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
-- Vite 6.4.3 production build: exit 0, 1,606 modules transformed.
-- Production bundle: CSS 73.42 kB (13.66 kB gzip), JS 283.41 kB (85.70 kB gzip).
+- Vite 6.4.3 production build: exit 0, 1,613 modules transformed.
+- Production bundle: CSS 98.21 kB (17.68 kB gzip), JS 313.65 kB (95.56 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now covers authentication and response parsing, stable media URLs, queue identity and boundaries, audio cleanup/scrobble/Media Session lifecycle, session concurrency, targeted retries, stale-detail invalidation, favorite rollback, modal focus coordination, decorative icon accessibility, seven unique scene and foreground-art contracts, generated-art CSS variables, inert transition rendering, decorative artwork fallback semantics, HeroMedia deduplication/loading/error recovery, committed-only theme sequencing, and real Cyber-to-Rock preservation of the App, shell, player, audio, HeroMedia and focused DOM nodes.
+The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven Canvas render strategies, bounded particles, one RAF chain, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, and ordinary playback continuing while `AudioContext.resume()` remains pending. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
 
 ## Local server and credential boundary
 
@@ -70,6 +70,26 @@ The real local app was rechecked in the in-app browser at its default 1280×720 
 - The responsive Rock page contained 164 decorative theme/cover image nodes with empty alt text, `HeroMedia` exposed `aria-hidden=true`, and it contained zero interactive descendants.
 
 Visual inspection confirmed that foreground art is part of the information hierarchy rather than a second full-page background: theme artifacts occupy the hero stage, live covers overlap them as physical media, artist cards use image-led proportions, and track/queue thumbnails remain readable at dense list scale.
+
+## Adaptive Visual Studio acceptance
+
+The new Studio view was exercised in the in-app browser against the authorized real Navidrome library. It appeared as the fourth primary destination beside Home, Search and Favorites and exposed one cover-response switch, one native 0–100 intensity control, Off/Spectrum/Particles/Hybrid modes, Automatic plus seven personality previews, and a filterable editor for all 50 real library genres.
+
+The real `Da Funk` cover completed the authenticated Blob fetch and browser-side 48×48 analysis. Studio reported `Current cover colors are active` and displayed exactly three valid swatches: `#3957a2`, `#cf5650`, and `#0e1528`. With the cover response enabled, the mapped Rock personality blended its primary to `#8d5d78`; disabling the switch immediately restored the Rock default `#ff653f`, and re-enabling restored the extracted response. No authenticated cover URL, image bytes, password, token or complete query was printed or persisted by the app.
+
+An explicit `电子音乐 → Riot Stage` mapping overrode the built-in Cyber rule for the live current track and survived navigation. Reset All changed the mapping back to Automatic and the same track immediately resolved to Cyber / console again. Previewing Soft Bloom switched to Bloom / garden and then returned to Automatic without replacing the single Canvas node. Spectrum and Hybrid were both selected through the real UI; `data-mode` followed each choice while `.audio-visualizer` remained a one-node decorative layer.
+
+Responsive measurements from the real Studio surface:
+
+| Viewport | Result |
+| --- | --- |
+| 1280×720 | document width 1280px, four navigation entries, one 1280×720 Canvas, no broken images, smallest navigation dimension 45.8px |
+| 390×844 | document width 390px, 362.8px Studio content, 64px four-entry bottom navigation, one 390×844 Canvas, smallest visible button dimension 44px |
+| 320×800 | document width 320px, two-column personality previews, mapping rows degrade to two grid rows, four-entry navigation and 44px minimum visible buttons |
+
+All three viewports had zero horizontal overflow. The Canvas had `pointer-events: none`, remained one instance through palette, mapping, preview and mode changes, and used a 2× bitmap at the desktop device pixel ratio. A final clean full-page reload, reconnect and Studio navigation produced no new browser warning or error logs.
+
+The automation browser still rejects audible `play()` because its synthetic click is not a trusted user interaction. The real audio element nevertheless loaded the authenticated stream to readyState 4 with no media error and `crossorigin="anonymous"`; the previously recorded Range proof remains `206`. The live analyser therefore remained in its honest `waiting` state during automation, and no claim is made that browser automation heard audio or observed live FFT energy. Unit coverage proves that a pending or failed AudioContext cannot delay ordinary `audio.play()`, and an actual human click remains the final audible/analyser check.
 
 ## Live Navidrome/API checks
 
@@ -154,6 +174,7 @@ The real Cyber genre surface was rechecked at `1440×900` and `390×844` after t
 - Burst keyframes animate only opacity and transform; the layer is `aria-hidden` and pointer-inert.
 - A live Cinematic-to-Lounge change mounted one smoke burst at `0.86s`; after 1,000ms the burst count was zero while the Lounge theme, focused trigger and single audio node remained intact.
 - With `prefers-reduced-motion: reduce`, the browser matched the media query, `.theme-burst` computed to `display:none`, and ambient animation computed to `none`.
+- Per the current iteration request, the new live spectrum/particle Canvas does not inspect or disable itself for `prefers-reduced-motion`; the existing burst and ambient reductions above remain unchanged.
 - The reduced-motion skip link remained translated off-screen when unfocused instead of becoming permanently visible.
 - Wide layout changes use grid areas without changing DOM/focus order.
 - Compact mode retained 44px controls, fixed navigation/player spacing and zero horizontal overflow.

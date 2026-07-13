@@ -9,7 +9,11 @@ import {
   type QueueState,
 } from "../state/playerQueue";
 import type { Track } from "../types";
-import { getScrobbleThreshold, useAudioPlayer } from "./useAudioPlayer";
+import {
+  getScrobbleThreshold,
+  useAudioPlayer,
+  type AudioPlayerController,
+} from "./useAudioPlayer";
 import { useNavidrome } from "./useNavidrome";
 
 const song: Track = {
@@ -35,9 +39,13 @@ afterEach(() => {
 function Harness({
   currentTrack,
   activeClient = client,
+  visualizerEnabled = false,
+  onController,
 }: {
   currentTrack?: Track;
   activeClient?: SubsonicClient;
+  visualizerEnabled?: boolean;
+  onController?: (controller: AudioPlayerController) => void;
 }) {
   const [, dispatch] = useReducer(queueReducer, createInitialQueueState());
   const queueState = currentTrack
@@ -48,7 +56,14 @@ function Harness({
         shuffle: false,
       } satisfies QueueState)
     : createInitialQueueState();
-  const player = useAudioPlayer({ client: activeClient, currentTrack, queueState, dispatch });
+  const player = useAudioPlayer({
+    client: activeClient,
+    currentTrack,
+    queueState,
+    dispatch,
+    visualizerEnabled,
+  });
+  onController?.(player);
 
   return (
     <div>
@@ -179,6 +194,154 @@ describe("useAudioPlayer", () => {
     expect(nextClient.scrobble).toHaveBeenNthCalledWith(2, song.id, false);
   });
 
+  it("creates one MediaElementSource and reuses it across concurrent activation and track changes", async () => {
+    const webAudio = installAudioContext();
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+
+    await act(async () => {
+      await Promise.all([player.visualizer.activate(), player.visualizer.activate()]);
+    });
+    await act(async () => {
+      await player.visualizer.activate();
+    });
+
+    const context = webAudio.instances[0]!;
+    expect(webAudio.instances).toHaveLength(1);
+    expect(context.resume).toHaveBeenCalledOnce();
+    expect(context.createMediaElementSource).toHaveBeenCalledOnce();
+    expect(webAudio.source.connect).toHaveBeenCalledWith(webAudio.analyser);
+    expect(webAudio.analyser.connect).toHaveBeenCalledWith(context.destination);
+    expect(player.visualizer.status).toBe("ready");
+
+    const frame = player.visualizer.readFrame();
+    expect(frame?.frequency).toHaveLength(128);
+    expect(frame?.waveform).toHaveLength(256);
+    expect(webAudio.analyser.getByteFrequencyData).toHaveBeenCalledOnce();
+    expect(webAudio.analyser.getByteTimeDomainData).toHaveBeenCalledOnce();
+
+    view.rerender(
+      <Harness
+        currentTrack={{ ...song, id: "song-2" }}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await act(async () => {
+      await player.visualizer.activate();
+    });
+
+    expect(context.createMediaElementSource).toHaveBeenCalledOnce();
+    expect(webAudio.instances).toHaveLength(1);
+  });
+
+  it("turns visualizer rendering off without closing or disconnecting its audio graph", async () => {
+    const webAudio = installAudioContext();
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await act(async () => {
+      await player.visualizer.activate();
+    });
+    const context = webAudio.instances[0]!;
+
+    view.rerender(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled={false}
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await waitFor(() => expect(player.visualizer.status).toBe("off"));
+
+    expect(context.close).not.toHaveBeenCalled();
+    expect(webAudio.source.disconnect).not.toHaveBeenCalled();
+    expect(webAudio.analyser.disconnect).not.toHaveBeenCalled();
+
+    context.state = "suspended";
+    await act(async () => {
+      await player.play();
+    });
+    expect(context.resume).toHaveBeenCalledTimes(2);
+    expect(play).toHaveBeenCalled();
+    expect(player.isPlaying).toBe(true);
+  });
+
+  it("keeps normal playback working when AudioContext construction fails", async () => {
+    installAudioContext({ constructorError: new Error("audio device unavailable") });
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    let player!: AudioPlayerController;
+    render(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+
+    await act(async () => {
+      await player.play();
+    });
+
+    expect(play).toHaveBeenCalledOnce();
+    expect(player.isPlaying).toBe(true);
+    expect(player.error).toBeUndefined();
+    expect(player.visualizer.status).toBe("unavailable");
+    expect(player.visualizer.error).toMatch(/could not be connected/i);
+  });
+
+  it("does not wait for a pending AudioContext resume before ordinary playback", async () => {
+    let releaseResume!: () => void;
+    const resumePromise = new Promise<void>((resolve) => {
+      releaseResume = resolve;
+    });
+    installAudioContext({ resumePromise });
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    let player!: AudioPlayerController;
+    render(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+
+    await act(async () => {
+      await player.play();
+    });
+
+    expect(play).toHaveBeenCalledOnce();
+    expect(player.isPlaying).toBe(true);
+    expect(player.error).toBeUndefined();
+
+    await act(async () => releaseResume());
+    await waitFor(() => expect(player.visualizer.status).toBe("ready"));
+  });
+
   it("removes Media Session handlers when the track is cleared", () => {
     const actionHandler = vi.fn();
     const original = Object.getOwnPropertyDescriptor(navigator, "mediaSession");
@@ -210,6 +373,47 @@ describe("useAudioPlayer", () => {
   });
 });
 
+function installAudioContext(
+  options: { constructorError?: Error; resumePromise?: Promise<void> } = {},
+) {
+  const source = {
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  } as unknown as MediaElementAudioSourceNode;
+  const analyser = {
+    fftSize: 2_048,
+    frequencyBinCount: 128,
+    smoothingTimeConstant: 0,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    getByteFrequencyData: vi.fn((values: Uint8Array<ArrayBuffer>) => values.fill(96)),
+    getByteTimeDomainData: vi.fn((values: Uint8Array<ArrayBuffer>) => values.fill(128)),
+  } as unknown as AnalyserNode;
+
+  class MockAudioContext {
+    state: AudioContextState = "suspended";
+    destination = {} as AudioDestinationNode;
+    resume = vi.fn(async () => {
+      await options.resumePromise;
+      this.state = "running";
+    });
+    close = vi.fn(async () => {
+      this.state = "closed";
+    });
+    createMediaElementSource = vi.fn((_audio: HTMLMediaElement) => source);
+    createAnalyser = vi.fn(() => analyser);
+
+    constructor() {
+      if (options.constructorError) throw options.constructorError;
+      instances.push(this);
+    }
+  }
+
+  const instances: MockAudioContext[] = [];
+  vi.stubGlobal("AudioContext", MockAudioContext);
+  return { instances, source, analyser };
+}
+
 function navidromeClient(
   overrides: Partial<SubsonicClient> = {},
 ): SubsonicClient {
@@ -225,6 +429,7 @@ function navidromeClient(
     star: vi.fn(async () => undefined),
     unstar: vi.fn(async () => undefined),
     scrobble: vi.fn(async () => undefined),
+    fetchCoverArt: vi.fn(async () => new Blob([], { type: "image/png" })),
     coverArtUrl: vi.fn((id) => `http://music.test/cover/${id}`),
     streamUrl: vi.fn((id) => `http://music.test/stream/${id}`),
     ...overrides,

@@ -8,6 +8,7 @@ import {
   LogIn,
   LogOut,
   Maximize2,
+  Palette,
   Pause,
   PencilLine,
   Play,
@@ -51,6 +52,7 @@ const ICONS = {
   revise: PencilLine,
   search: Search,
   shuffle: Shuffle,
+  studio: Palette,
   trash: Trash2,
   volume: Volume2,
 } satisfies Record<string, LucideIcon>;

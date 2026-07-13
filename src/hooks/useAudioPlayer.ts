@@ -10,6 +10,7 @@ import {
 
 import { createStableMediaUrlResolver } from "../lib/mediaUrls";
 import type { SubsonicClient } from "../lib/subsonic";
+import type { AudioVisualizerFrame } from "../lib/visualizerRenderer";
 import {
   getCurrentOccurrenceKey,
   type QueueAction,
@@ -22,6 +23,17 @@ export interface UseAudioPlayerOptions {
   currentTrack?: Track;
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
+  visualizerEnabled?: boolean;
+}
+
+export type AudioVisualizerStatus = "off" | "waiting" | "ready" | "unavailable";
+
+export interface AudioVisualizerController {
+  supported: boolean;
+  status: AudioVisualizerStatus;
+  error?: string;
+  activate(): Promise<void>;
+  readFrame(): AudioVisualizerFrame | undefined;
 }
 
 export interface AudioPlayerController {
@@ -32,6 +44,7 @@ export interface AudioPlayerController {
   volume: number;
   muted: boolean;
   error?: string;
+  visualizer: AudioVisualizerController;
   play(): Promise<void>;
   pause(): void;
   toggle(): Promise<void>;
@@ -47,6 +60,15 @@ export interface AudioPlayerController {
   handleError(): void;
 }
 
+interface AudioGraph {
+  audio: HTMLAudioElement;
+  context: AudioContext;
+  source: MediaElementAudioSourceNode;
+  analyser?: AnalyserNode;
+  frequency?: Uint8Array<ArrayBuffer>;
+  waveform?: Uint8Array<ArrayBuffer>;
+}
+
 export function getScrobbleThreshold(duration: number): number {
   if (!Number.isFinite(duration) || duration <= 0) return 0;
   return Math.min(duration * 0.5, 240);
@@ -57,6 +79,7 @@ export function useAudioPlayer({
   currentTrack,
   queueState,
   dispatch,
+  visualizerEnabled = false,
 }: UseAudioPlayerOptions): AudioPlayerController {
   const audioRef = useRef<HTMLAudioElement>(null);
   const loadedOccurrenceKey = useRef<number | string | undefined>(undefined);
@@ -64,13 +87,35 @@ export function useAudioPlayer({
   const playingRef = useRef(false);
   const startedForLoad = useRef(false);
   const submittedForLoad = useRef(false);
+  const audioGraph = useRef<AudioGraph | undefined>(undefined);
+  const pendingAudioGraph = useRef<{
+    audio: HTMLAudioElement;
+    promise: Promise<void>;
+  } | undefined>(undefined);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(0.86);
   const [muted, setMuted] = useState(false);
   const [error, setError] = useState<string>();
+  const [visualizerStatus, setVisualizerStatus] = useState<AudioVisualizerStatus>(
+    visualizerEnabled ? "waiting" : "off",
+  );
+  const [visualizerError, setVisualizerError] = useState<string>();
   const currentOccurrenceKey = getCurrentOccurrenceKey(queueState);
+  const AudioContextConstructor = getAudioContextConstructor();
+
+  useEffect(() => {
+    if (!visualizerEnabled) {
+      setVisualizerStatus("off");
+      return;
+    }
+    if (audioGraph.current && !audioGraph.current.analyser) {
+      setVisualizerStatus("unavailable");
+      return;
+    }
+    setVisualizerStatus(audioGraph.current?.analyser ? "ready" : "waiting");
+  }, [visualizerEnabled]);
 
   const mediaUrls = useMemo(
     () =>
@@ -185,6 +230,13 @@ export function useAudioPlayer({
     if (!audio || !client || !currentTrack) return;
     setError(undefined);
     try {
+      if (visualizerEnabled) {
+        // Web Audio is an enhancement. Some browsers leave context.resume()
+        // pending until a later gesture, so playback must never wait for it.
+        void activateVisualizer().catch(() => undefined);
+      } else if (audioGraph.current?.context.state === "suspended") {
+        void audioGraph.current.context.resume().catch(() => undefined);
+      }
       await audio.play();
       playingRef.current = true;
       setIsPlaying(true);
@@ -304,6 +356,125 @@ export function useAudioPlayer({
     setError(messages[mediaError?.code ?? 0] ?? "The track could not be played");
   }
 
+  async function activateVisualizer(): Promise<void> {
+    const audio = audioRef.current;
+    if (!audio) {
+      setVisualizerStatus("waiting");
+      return;
+    }
+    if (!AudioContextConstructor) {
+      setVisualizerStatus("unavailable");
+      setVisualizerError("Web Audio is not available in this browser");
+      return;
+    }
+    const existing = audioGraph.current;
+    if (existing?.audio === audio) {
+      try {
+        if (existing.context.state === "suspended") await existing.context.resume();
+        if (existing.analyser) {
+          setVisualizerStatus("ready");
+          setVisualizerError(undefined);
+        } else {
+          setVisualizerStatus("unavailable");
+          setVisualizerError("The audio stream could not be connected to Web Audio");
+        }
+      } catch {
+        setVisualizerStatus("unavailable");
+        setVisualizerError("The browser blocked the audio visualizer");
+      }
+      return;
+    }
+    const pending = pendingAudioGraph.current;
+    if (pending?.audio === audio) return pending.promise;
+    if (existing && existing.audio !== audio) {
+      void existing.context.close().catch(() => undefined);
+      audioGraph.current = undefined;
+    }
+
+    const promise = buildAudioGraph(audio, AudioContextConstructor);
+    pendingAudioGraph.current = { audio, promise };
+    try {
+      await promise;
+    } finally {
+      if (pendingAudioGraph.current?.promise === promise) {
+        pendingAudioGraph.current = undefined;
+      }
+    }
+  }
+
+  async function buildAudioGraph(
+    audio: HTMLAudioElement,
+    ContextConstructor: typeof AudioContext,
+  ): Promise<void> {
+    let context: AudioContext | undefined;
+    let source: MediaElementAudioSourceNode | undefined;
+    try {
+      context = new ContextConstructor();
+      if (context.state === "suspended") await context.resume();
+      if (audioRef.current !== audio) {
+        void context.close().catch(() => undefined);
+        return;
+      }
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.72;
+      const frequency: Uint8Array<ArrayBuffer> = new Uint8Array(analyser.frequencyBinCount);
+      const waveform: Uint8Array<ArrayBuffer> = new Uint8Array(analyser.fftSize);
+      source = context.createMediaElementSource(audio);
+      try {
+        source.connect(analyser);
+        analyser.connect(context.destination);
+      } catch {
+        // Once a media element has been claimed by Web Audio it must keep a live
+        // route to the destination, even when visual analysis cannot be attached.
+        try {
+          source.disconnect();
+        } catch {
+          // The failed connection may not have registered an edge to remove.
+        }
+        try {
+          source.connect(context.destination);
+        } catch {
+          // Preserve the claimed graph so later activation never claims it twice.
+        }
+        audioGraph.current = { audio, context, source };
+        setVisualizerStatus("unavailable");
+        setVisualizerError("The audio stream could not be connected to Web Audio");
+        return;
+      }
+      audioGraph.current = {
+        audio,
+        context,
+        source,
+        analyser,
+        frequency,
+        waveform,
+      };
+      setVisualizerStatus("ready");
+      setVisualizerError(undefined);
+    } catch {
+      // Closing is safe only before createMediaElementSource has rerouted the
+      // element. A claimed source must stay connected to a running destination.
+      if (context && !source) void context.close().catch(() => undefined);
+      setVisualizerStatus("unavailable");
+      setVisualizerError("The audio stream could not be connected to Web Audio");
+    }
+  }
+
+  function readVisualizerFrame(): AudioVisualizerFrame | undefined {
+    const graph = audioGraph.current;
+    if (
+      !graph ||
+      !graph.analyser ||
+      !graph.frequency ||
+      !graph.waveform ||
+      graph.context.state !== "running"
+    ) return undefined;
+    graph.analyser.getByteFrequencyData(graph.frequency);
+    graph.analyser.getByteTimeDomainData(graph.waveform);
+    return { frequency: graph.frequency, waveform: graph.waveform };
+  }
+
   return {
     audioRef,
     isPlaying,
@@ -312,6 +483,13 @@ export function useAudioPlayer({
     volume,
     muted,
     error,
+    visualizer: {
+      supported: Boolean(AudioContextConstructor),
+      status: visualizerEnabled ? visualizerStatus : "off",
+      error: visualizerError,
+      activate: activateVisualizer,
+      readFrame: readVisualizerFrame,
+    },
     play,
     pause,
     toggle,
@@ -326,4 +504,13 @@ export function useAudioPlayer({
     handleEnded,
     handleError,
   };
+}
+
+type AudioContextGlobal = typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext;
+};
+
+function getAudioContextConstructor(): typeof AudioContext | undefined {
+  const scope = globalThis as AudioContextGlobal;
+  return scope.AudioContext ?? scope.webkitAudioContext;
 }

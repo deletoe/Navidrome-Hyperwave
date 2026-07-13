@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveThemeForTrack, themeToCssVars } from "./themeEngine";
+import {
+  resolveDefaultThemeForGenre,
+  resolveThemeForTrack,
+  themeToCssVars,
+} from "./themeEngine";
 
 const track = (
   id: string,
@@ -36,6 +40,25 @@ describe("visual personality engine", () => {
     ).toBe("pixel");
   });
 
+  it("gives an exact normalized genre override priority over built-in metadata rules", () => {
+    const overrides = new Map([
+      ["electronic", "bloom" as const],
+      ["rock", "prism" as const],
+    ]);
+
+    expect(resolveThemeForTrack(track("mapped", { genre: "ＥＬＥＣＴＲＯＮＩＣ" }), overrides).id)
+      .toBe("bloom");
+    expect(resolveThemeForTrack(track("mapped-rock", { genre: "Rock" }), overrides).id)
+      .toBe("prism");
+    expect(resolveThemeForTrack(track("fallback", { genre: "Jazz" }), overrides).id)
+      .toBe("lounge");
+  });
+
+  it("resolves the editor Auto result from one genre without title leakage", () => {
+    expect(resolveDefaultThemeForGenre("Video Game Soundtrack").id).toBe("pixel");
+    expect(resolveDefaultThemeForGenre("unknown signal").id).toBe("prism");
+  });
+
   it("classifies metadata without changing letter case requirements", () => {
     expect(resolveThemeForTrack(track("case", { genre: "eLeCtRoNiC" })).id).toBe("cyber");
   });
@@ -62,7 +85,7 @@ describe("visual personality engine", () => {
       track("lounge", { genre: "Soul" }),
     ];
 
-    const themes = fixtures.map(resolveThemeForTrack);
+    const themes = fixtures.map((fixture) => resolveThemeForTrack(fixture));
 
     expect(new Set(themes.map(({ id }) => id))).toEqual(
       new Set(["prism", "cyber", "bloom", "pixel", "rock", "cinematic", "lounge"]),
@@ -100,7 +123,7 @@ describe("visual personality engine", () => {
       track("cinematic", { genre: "Classical" }),
       track("lounge", { genre: "Soul" }),
     ];
-    const themes = fixtures.map(resolveThemeForTrack);
+    const themes = fixtures.map((fixture) => resolveThemeForTrack(fixture));
 
     expect(new Set(themes.map(({ scene }) => scene.layout)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.transition)).size).toBe(7);
@@ -167,5 +190,26 @@ describe("visual personality engine", () => {
       "--motion-duration": `${theme.motionDuration}ms`,
     });
     expect(themeToCssVars(theme)).toHaveProperty("--display-font");
+  });
+
+  it("blends cover accents into a personality without changing its scene contract", () => {
+    const theme = resolveThemeForTrack(track("palette", { genre: "Rock" }));
+    const variables = themeToCssVars(theme, {
+      intensity: 100,
+      palette: { primary: "#00ff88", secondary: "#8844ff", dark: "#06120d" },
+    });
+
+    expect(variables["--theme-primary"]).not.toBe(theme.colors.primary);
+    expect(variables["--theme-secondary"]).not.toBe(theme.colors.secondary);
+    expect(variables["--cover-primary"]).toBe("#00ff88");
+    expect(variables["--visual-intensity"]).toBe("1.00");
+    expect(variables["--visualizer-opacity"]).toBe("0.92");
+    expect(variables["--theme-art"]).toBe(`url("${theme.scene.asset}")`);
+  });
+
+  it("clamps visual intensity before exporting runtime controls", () => {
+    const theme = resolveThemeForTrack(track("intensity"));
+    expect(themeToCssVars(theme, { intensity: -20 })["--visual-intensity"]).toBe("0.00");
+    expect(themeToCssVars(theme, { intensity: 240 })["--visual-intensity"]).toBe("1.00");
   });
 });

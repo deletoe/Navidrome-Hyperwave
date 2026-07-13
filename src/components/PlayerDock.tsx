@@ -331,6 +331,7 @@ export function PlayerDock({
 
       <audio
         ref={player.audioRef}
+        crossOrigin="anonymous"
         preload="metadata"
         onTimeUpdate={player.handleTimeUpdate}
         onLoadedMetadata={player.handleLoadedMetadata}

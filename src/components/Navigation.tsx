@@ -1,8 +1,8 @@
 import type { ServerInfo } from "../types";
 import { AppIcon, type AppIconName } from "./AppIcon";
 
-export type AppView = "home" | "search" | "favorites" | "album" | "artist" | "genre";
-export type PrimaryView = Extract<AppView, "home" | "search" | "favorites">;
+export type AppView = "home" | "search" | "favorites" | "studio" | "album" | "artist" | "genre";
+export type PrimaryView = Extract<AppView, "home" | "search" | "favorites" | "studio">;
 
 export interface NavigationProps {
   view: AppView;
@@ -14,6 +14,7 @@ const destinations: Array<{ id: PrimaryView; label: string; icon: AppIconName }>
   { id: "home", label: "Home", icon: "home" },
   { id: "search", label: "Search", icon: "search" },
   { id: "favorites", label: "Favorites", icon: "favorite" },
+  { id: "studio", label: "Studio", icon: "studio" },
 ];
 
 export function Navigation({ view, serverInfo, onNavigate, onDisconnect }: NavigationProps) {

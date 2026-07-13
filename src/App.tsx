@@ -1,5 +1,6 @@
 import { useEffect, useId, useReducer, useRef, useState } from "react";
 
+import { AudioVisualizer } from "./components/AudioVisualizer";
 import { ConnectionGate } from "./components/ConnectionGate";
 import { EntityDetail, type DetailKind } from "./components/EntityDetail";
 import { FavoritesView } from "./components/FavoritesView";
@@ -13,10 +14,18 @@ import { PlayerDock } from "./components/PlayerDock";
 import { QueuePanel } from "./components/QueuePanel";
 import { SearchView } from "./components/SearchView";
 import { ThemeBurst } from "./components/ThemeBurst";
+import { ThemeStudio, type ThemePreviewId } from "./components/ThemeStudio";
 import { Toast } from "./components/Toast";
 import { useAudioPlayer } from "./hooks/useAudioPlayer";
+import { useCoverPalette } from "./hooks/useCoverPalette";
 import { useNavidrome } from "./hooks/useNavidrome";
-import { resolveThemeForTrack, themeToCssVars } from "./lib/themeEngine";
+import { useVisualPreferences } from "./hooks/useVisualPreferences";
+import {
+  getThemeById,
+  resolveThemeForTrack,
+  themeToCssVars,
+} from "./lib/themeEngine";
+import type { VisualizerMode } from "./lib/visualPreferences";
 import {
   createInitialQueueState,
   getCurrentTrack,
@@ -35,15 +44,19 @@ type NavigationEntry =
 
 export default function App() {
   const navidrome = useNavidrome();
+  const visualPreferences = useVisualPreferences();
   const [queueState, dispatch] = useReducer(queueReducer, createInitialQueueState());
   const currentTrack = getCurrentTrack(queueState);
+  const visualizerEnabled = visualPreferences.preferences.visualizer !== "off";
   const player = useAudioPlayer({
     client: navidrome.client,
     currentTrack,
     queueState,
     dispatch,
+    visualizerEnabled,
   });
   const [view, setView] = useState<AppView>("home");
+  const [previewThemeId, setPreviewThemeId] = useState<ThemePreviewId>("auto");
   const [detailRequest, setDetailRequest] = useState<DetailRequest>();
   const [detailHistory, setDetailHistory] = useState<NavigationEntry[]>([]);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -52,7 +65,22 @@ export default function App() {
   const [toastVisible, setToastVisible] = useState(false);
   const pendingPlay = useRef(false);
   const [playRequest, setPlayRequest] = useState(0);
-  const theme = resolveThemeForTrack(currentTrack);
+  const automaticTheme = resolveThemeForTrack(currentTrack, visualPreferences.genreMap);
+  const theme = previewThemeId === "auto"
+    ? automaticTheme
+    : getThemeById(previewThemeId);
+  const coverPalette = useCoverPalette({
+    coverArtId: currentTrack?.coverArt,
+    enabled: visualPreferences.preferences.coverPalette,
+    loadCoverArt: navidrome.client?.fetchCoverArt,
+  });
+  const activePalette = visualPreferences.preferences.coverPalette
+    ? coverPalette.palette
+    : undefined;
+  const themeStyle = themeToCssVars(theme, {
+    palette: activePalette,
+    intensity: visualPreferences.preferences.intensity,
+  });
   const committedThemeId = useRef(theme.id);
   const [themeSequence, setThemeSequence] = useState(0);
   const toastMessage = navidrome.mutationError || player.error || notice;
@@ -85,7 +113,12 @@ export default function App() {
   }
 
   function currentNavigationEntry(): NavigationEntry {
-    if (view === "home" || view === "search" || view === "favorites") {
+    if (
+      view === "home" ||
+      view === "search" ||
+      view === "favorites" ||
+      view === "studio"
+    ) {
       return { view };
     }
     return detailRequest
@@ -139,6 +172,7 @@ export default function App() {
   }
 
   function requestPlayback(track: Track, index: number, tracks: Track[]): void {
+    if (visualizerEnabled) void player.visualizer.activate();
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks, startIndex: index });
     setPlayRequest((value) => value + 1);
@@ -147,6 +181,7 @@ export default function App() {
 
   function playCollection(tracks: Track[]): void {
     if (tracks.length === 0) return;
+    if (visualizerEnabled) void player.visualizer.activate();
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks });
     setPlayRequest((value) => value + 1);
@@ -167,6 +202,7 @@ export default function App() {
   function selectAndPlayFromQueue(index: number): void {
     const track = queueState.tracks[index];
     if (!track) return;
+    if (visualizerEnabled) void player.visualizer.activate();
     pendingPlay.current = true;
     dispatch({ type: "select", index });
     setPlayRequest((value) => value + 1);
@@ -184,13 +220,42 @@ export default function App() {
     dispatch({ type: "clear" });
     navidrome.disconnect();
     setView("home");
+    setPreviewThemeId("auto");
     setDetailRequest(undefined);
     setDetailHistory([]);
     setQueueOpen(false);
     setNotice(undefined);
   }
 
+  function setVisualizerMode(mode: VisualizerMode): void {
+    visualPreferences.setVisualizer(mode);
+    if (mode !== "off") void player.visualizer.activate();
+  }
+
   function renderView() {
+    if (view === "studio") {
+      return (
+        <ThemeStudio
+          theme={theme}
+          paletteStatus={coverPalette.status}
+          palette={activePalette}
+          currentCoverUrl={coverUrl(currentTrack?.coverArt, 960)}
+          preferences={visualPreferences.preferences}
+          genres={navidrome.home.genres.map(({ value }) => value)}
+          visualizerSupported={player.visualizer.supported}
+          visualizerStatus={player.visualizer.status}
+          visualizerError={player.visualizer.error}
+          updateIntensity={visualPreferences.setIntensity}
+          setPaletteEnabled={visualPreferences.setCoverPalette}
+          setVisualizerMode={setVisualizerMode}
+          upsertGenreMapping={visualPreferences.upsertGenreMapping}
+          removeGenreMapping={visualPreferences.removeGenreMapping}
+          resetGenreMappings={visualPreferences.resetGenreMappings}
+          previewThemeId={previewThemeId}
+          setPreviewThemeId={setPreviewThemeId}
+        />
+      );
+    }
     if (view === "home") {
       return (
         <HomeView
@@ -290,7 +355,7 @@ export default function App() {
         data-view={view}
         data-playing={player.isPlaying}
         data-has-track={Boolean(currentTrack)}
-        style={themeToCssVars(theme)}
+        style={themeStyle}
       >
         <div className="ambient-layer" aria-hidden="true" />
         <ConnectionGate
@@ -321,7 +386,7 @@ export default function App() {
       data-view={view}
       data-playing={player.isPlaying}
       data-has-track={Boolean(currentTrack)}
-      style={themeToCssVars(theme)}
+      style={themeStyle}
     >
       <ThemeBurst
         key={theme.id}
@@ -329,7 +394,19 @@ export default function App() {
         active={Boolean(currentTrack)}
         sequence={themeSequence}
       />
-      <div className="ambient-layer" aria-hidden="true" />
+      <div className="ambient-layer" aria-hidden="true">
+        <AudioVisualizer
+          className="ambient-visualizer"
+          readFrame={player.visualizer.readFrame}
+          enabled={visualizerEnabled && player.visualizer.status !== "unavailable"}
+          playing={player.isPlaying}
+          themeId={theme.id}
+          intensity={visualPreferences.preferences.intensity / 50}
+          primary={themeStyle["--theme-primary"]}
+          secondary={themeStyle["--theme-secondary"]}
+          mode={visualPreferences.preferences.visualizer}
+        />
+      </div>
       <a className="skip-link" href="#main-content">
         Skip to archive content
       </a>

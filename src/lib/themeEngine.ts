@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 
-import type { ThemeId, Track, VisualTheme } from "../types";
+import type { CoverPalette, ThemeId, Track, VisualTheme } from "../types";
+import { mixHexColors } from "./coverPalette";
+import { normalizeGenre } from "./visualPreferences";
 
 const THEMES: Record<ThemeId, VisualTheme> = {
   prism: {
@@ -258,7 +260,34 @@ function metadataText(track?: Track): string {
     .toLowerCase();
 }
 
-export function resolveThemeForTrack(track?: Track): VisualTheme {
+function explicitTrackGenres(track?: Track): string[] {
+  if (!track) return [];
+  return [track.genre, ...(track.genres?.map((genre) => genre.name) ?? [])]
+    .filter((genre): genre is string => Boolean(genre?.trim()));
+}
+
+export function getThemeById(id: ThemeId): VisualTheme {
+  return THEMES[id];
+}
+
+export function getVisualThemes(): VisualTheme[] {
+  return Object.values(THEMES);
+}
+
+export function resolveDefaultThemeForGenre(genre: string): VisualTheme {
+  const normalized = normalizeGenre(genre);
+  const match = RULES.find(([, expression]) => expression.test(normalized));
+  return THEMES[match?.[0] ?? "prism"];
+}
+
+export function resolveThemeForTrack(
+  track?: Track,
+  genreOverrides?: ReadonlyMap<string, ThemeId>,
+): VisualTheme {
+  for (const genre of explicitTrackGenres(track)) {
+    const override = genreOverrides?.get(normalizeGenre(genre));
+    if (override) return THEMES[override];
+  }
   const metadata = metadataText(track);
   const match = RULES.find(([, expression]) => expression.test(metadata));
   return THEMES[match?.[0] ?? "prism"];
@@ -266,7 +295,15 @@ export function resolveThemeForTrack(track?: Track): VisualTheme {
 
 type ThemeCssProperties = CSSProperties & Record<`--${string}`, string>;
 
-export function themeToCssVars(theme: VisualTheme): ThemeCssProperties {
+export interface ThemeRenderOptions {
+  palette?: CoverPalette;
+  intensity?: number;
+}
+
+export function themeToCssVars(
+  theme: VisualTheme,
+  options: ThemeRenderOptions = {},
+): ThemeCssProperties {
   const artSize: Record<VisualTheme["scene"]["assetMode"], string> = {
     cover: "cover",
     tile: "512px 512px",
@@ -281,15 +318,41 @@ export function themeToCssVars(theme: VisualTheme): ThemeCssProperties {
     screening: "center top",
     club: "center",
   };
+  const intensity = Math.min(100, Math.max(0, Math.round(options.intensity ?? 85))) / 100;
+  const palette = options.palette;
+  const primary = palette
+    ? mixHexColors(theme.colors.primary, palette.primary, intensity * 0.68)
+    : theme.colors.primary;
+  const secondary = palette
+    ? mixHexColors(theme.colors.secondary, palette.secondary, intensity * 0.58)
+    : theme.colors.secondary;
+  const background = palette
+    ? mixHexColors(theme.colors.background, palette.dark, intensity * 0.22)
+    : theme.colors.background;
+  const surfaceStrong = palette
+    ? mixHexColors(theme.colors.surfaceStrong, palette.dark, intensity * 0.2)
+    : theme.colors.surfaceStrong;
   return {
-    "--theme-bg": theme.colors.background,
+    "--theme-bg": background,
     "--theme-surface": theme.colors.surface,
-    "--theme-surface-strong": theme.colors.surfaceStrong,
-    "--theme-primary": theme.colors.primary,
-    "--theme-secondary": theme.colors.secondary,
+    "--theme-surface-strong": surfaceStrong,
+    "--theme-primary": primary,
+    "--theme-secondary": secondary,
     "--theme-text": theme.colors.text,
     "--theme-muted": theme.colors.muted,
-    "--theme-border": theme.colors.border,
+    "--theme-border": palette
+      ? `color-mix(in srgb, ${primary} 42%, transparent)`
+      : theme.colors.border,
+    "--cover-primary": palette?.primary ?? theme.colors.primary,
+    "--cover-secondary": palette?.secondary ?? theme.colors.secondary,
+    "--cover-dark": palette?.dark ?? theme.colors.background,
+    "--visual-intensity": intensity.toFixed(2),
+    "--ambient-opacity": (0.48 + intensity * 0.5).toFixed(2),
+    "--texture-opacity": (0.22 + intensity * 0.56).toFixed(2),
+    "--texture-detail-opacity": (0.14 + intensity * 0.5).toFixed(2),
+    "--hero-glow-opacity": (0.2 + intensity * 0.62).toFixed(2),
+    "--hero-artifact-opacity": (0.55 + intensity * 0.43).toFixed(2),
+    "--visualizer-opacity": (0.18 + intensity * 0.74).toFixed(2),
     "--theme-art": `url("${theme.scene.asset}")`,
     "--theme-foreground": `url("${theme.scene.foregroundAsset}")`,
     "--theme-art-size": artSize[theme.scene.assetMode],

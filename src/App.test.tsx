@@ -47,6 +47,13 @@ function playerController(): AudioPlayerController {
     volume: 0.8,
     muted: false,
     error: undefined,
+    visualizer: {
+      supported: true,
+      status: "waiting",
+      error: undefined,
+      activate: vi.fn(async () => undefined),
+      readFrame: vi.fn(() => undefined),
+    },
     play: vi.fn(async () => undefined),
     pause: vi.fn(),
     toggle: vi.fn(async () => undefined),
@@ -117,6 +124,29 @@ function connectedController(
   };
 }
 
+function installMemoryStorage(): void {
+  const values = new Map<string, string>();
+  const storage: Storage = {
+    get length() {
+      return values.size;
+    },
+    clear: () => values.clear(),
+    getItem: (key) => values.get(key) ?? null,
+    key: (index) => [...values.keys()][index] ?? null,
+    removeItem: (key) => values.delete(key),
+    setItem: (key, value) => values.set(key, value),
+  };
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: storage,
+  });
+}
+
+beforeEach(() => {
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  installMemoryStorage();
+});
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -124,21 +154,7 @@ afterEach(() => {
 
 describe("application shell", () => {
   beforeEach(() => {
-    const values = new Map<string, string>();
-    const storage: Storage = {
-      get length() {
-        return values.size;
-      },
-      clear: () => values.clear(),
-      getItem: (key) => values.get(key) ?? null,
-      key: (index) => [...values.keys()][index] ?? null,
-      removeItem: (key) => values.delete(key),
-      setItem: (key, value) => values.set(key, value),
-    };
-    Object.defineProperty(window, "localStorage", {
-      configurable: true,
-      value: storage,
-    });
+    installMemoryStorage();
   });
 
   it("starts at a dedicated connection gate", () => {
@@ -330,6 +346,7 @@ describe("compact player interactions", () => {
       "data-has-track",
       "true",
     );
+    expect(container.querySelector("audio")).toHaveAttribute("crossorigin", "anonymous");
 
     rerender(
       <PlayerDock
@@ -649,6 +666,64 @@ describe("compact player interactions", () => {
 });
 
 describe("state coordination regressions", () => {
+  it("connects Studio preferences without remounting the visualizer stage", async () => {
+    const user = userEvent.setup();
+    const electronic = {
+      ...track,
+      id: "studio-electronic",
+      title: "Studio Circuit",
+      genre: "Electronic",
+    };
+    const controller = connectedController({
+      starredSongs: [electronic],
+      home: {
+        newest: [],
+        random: [],
+        frequent: [],
+        genres: [{ value: "Electronic", songCount: 12 }],
+        warnings: {},
+        loading: false,
+      },
+    });
+    const player = playerController();
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(player);
+
+    render(<App />);
+    const app = document.querySelector<HTMLElement>(".app")!;
+    const visualizer = document.querySelector<HTMLCanvasElement>(".audio-visualizer")!;
+
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+    await user.click(
+      within(screen.getByRole("main")).getByRole("button", { name: "Play Studio Circuit" }),
+    );
+    expect(player.visualizer.activate).toHaveBeenCalledOnce();
+    expect(app).toHaveAttribute("data-theme", "cyber");
+
+    await user.click(screen.getByRole("button", { name: "Studio" }));
+    expect(screen.getByRole("heading", { name: "Theme studio" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Studio" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Theme for Electronic" }), "rock");
+    expect(app).toHaveAttribute("data-theme", "rock");
+    expect(document.querySelector(".audio-visualizer")).toBe(visualizer);
+
+    fireEvent.change(screen.getByRole("slider", { name: "Theme intensity" }), {
+      target: { value: "37" },
+    });
+    expect(app.style.getPropertyValue("--visual-intensity")).toBe("0.37");
+
+    await user.click(screen.getByRole("radio", { name: /^Particles/ }));
+    expect(player.visualizer.activate).toHaveBeenCalledTimes(2);
+
+    await user.click(screen.getByRole("radio", { name: /Soft Bloom/ }));
+    expect(app).toHaveAttribute("data-theme", "bloom");
+    expect(document.querySelector(".audio-visualizer")).toBe(visualizer);
+  });
+
   it("exposes the active view and playback state without replacing the app shell", async () => {
     const user = userEvent.setup();
     const controller = connectedController({ starredSongs: [track] });

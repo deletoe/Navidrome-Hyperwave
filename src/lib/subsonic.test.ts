@@ -135,4 +135,44 @@ describe("Subsonic endpoint client", () => {
     expect(stream.searchParams.get("maxBitRate")).toBe("320");
     expect(stream.searchParams.get("t")).toBe(SparkMD5.hash("secretfixed"));
   });
+
+  it("fetches a small CORS-clean cover without credential cookies or referrer data", async () => {
+    const coverBody = new Blob([new Uint8Array([137, 80, 78, 71])], { type: "image/png" });
+    const fetcher = vi.fn(async (_input: string, _init?: RequestInit) =>
+      new Response(coverBody, {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": String(coverBody.size) },
+      }),
+    );
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.fetchCoverArt("cover 1", 64)).resolves.toHaveProperty(
+      "type",
+      "image/png",
+    );
+    const [input, init] = fetcher.mock.calls[0]!;
+    expect(new URL(String(input)).pathname).toBe("/rest/getCoverArt.view");
+    expect(init).toMatchObject({
+      mode: "cors",
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
+    });
+  });
+
+  it("rejects non-image cover responses without exposing the authenticated URL", async () => {
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher: async () => new Response("not an image", { headers: { "content-type": "text/plain" } }),
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.fetchCoverArt("cover 1")).rejects.toThrow("not an image");
+    await expect(client.fetchCoverArt("cover 1")).rejects.not.toThrow(/secret|fixed|u=|t=/i);
+  });
 });

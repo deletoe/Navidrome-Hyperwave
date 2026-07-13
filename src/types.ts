@@ -89,6 +89,12 @@ export interface ServerInfo {
 
 export type ThemeId = "prism" | "cyber" | "bloom" | "pixel" | "rock" | "cinematic" | "lounge";
 
+export interface CoverPalette {
+  primary: string;
+  secondary: string;
+  dark: string;
+}
+
 export interface VisualThemeColors {
   background: string;
   surface: string;

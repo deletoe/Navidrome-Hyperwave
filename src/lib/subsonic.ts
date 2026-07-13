@@ -133,6 +133,7 @@ export interface SubsonicClient {
   star(id: string): Promise<void>;
   unstar(id: string): Promise<void>;
   scrobble(id: string, submission: boolean): Promise<void>;
+  fetchCoverArt(id: string, size?: number, signal?: AbortSignal): Promise<Blob>;
   coverArtUrl(id: string, size?: number): string;
   streamUrl(id: string, maxBitRate?: number): string;
 }
@@ -240,6 +241,39 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
     },
     async scrobble(id, submission) {
       await request("scrobble", { id, submission });
+    },
+    async fetchCoverArt(id, size = 64, signal) {
+      const url = endpointUrl(options.serverUrl, "getCoverArt", options.auth, { id, size }, saltFactory);
+      let response: Response;
+      try {
+        response = await fetcher(url, {
+          method: "GET",
+          headers: { Accept: "image/*" },
+          mode: "cors",
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
+          signal,
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") throw error;
+        throw new SubsonicError({ code: 0, message: "Cover colors are unavailable" });
+      }
+      if (!response.ok) {
+        throw new SubsonicError({ code: response.status, message: "Cover colors are unavailable" });
+      }
+      const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim() ?? "";
+      if (!contentType.startsWith("image/")) {
+        throw new SubsonicError({ code: 0, message: "Cover response was not an image" });
+      }
+      const declaredSize = Number(response.headers.get("content-length") ?? 0);
+      if (declaredSize > 5_000_000) {
+        throw new SubsonicError({ code: 0, message: "Cover image was too large to analyze" });
+      }
+      const blob = await response.blob();
+      if (blob.size > 5_000_000) {
+        throw new SubsonicError({ code: 0, message: "Cover image was too large to analyze" });
+      }
+      return blob;
     },
     coverArtUrl(id, size = 512) {
       return endpointUrl(options.serverUrl, "getCoverArt", options.auth, { id, size }, saltFactory);

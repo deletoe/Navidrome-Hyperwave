@@ -15,6 +15,7 @@
   background-position: center, var(--theme-art-position);
   background-repeat: no-repeat;
   background-size: cover, var(--theme-art-size);
+  opacity: var(--ambient-opacity, 0.9);
 }
 
 [data-layout="console"] .ambient-layer,
@@ -992,6 +993,260 @@
   transform: rotate(6deg);
 }
 
+/* The live Canvas shares one DOM node while each personality changes its optical treatment. */
+[data-theme="prism"] .audio-visualizer {
+  mix-blend-mode: screen;
+  filter: blur(0.2px) saturate(138%) contrast(108%);
+}
+
+[data-theme="cyber"] .audio-visualizer {
+  mix-blend-mode: screen;
+  filter: saturate(168%) contrast(124%);
+}
+
+[data-theme="bloom"] .audio-visualizer {
+  mix-blend-mode: plus-lighter;
+  filter: blur(0.65px) saturate(118%);
+}
+
+[data-theme="pixel"] .audio-visualizer {
+  image-rendering: pixelated;
+  mix-blend-mode: screen;
+  filter: contrast(148%) saturate(136%);
+}
+
+[data-theme="rock"] .audio-visualizer {
+  mix-blend-mode: screen;
+  filter: contrast(142%) saturate(122%);
+}
+
+[data-theme="cinematic"] .audio-visualizer {
+  mix-blend-mode: screen;
+  filter: sepia(18%) saturate(88%) contrast(112%);
+}
+
+[data-theme="lounge"] .audio-visualizer {
+  mix-blend-mode: plus-lighter;
+  filter: sepia(22%) saturate(106%) blur(0.25px);
+}
+
+/* Theme Studio keeps one semantic structure, then adopts seven different art directions. */
+[data-theme="prism"] .theme-studio__hero {
+  border-color: color-mix(in srgb, var(--theme-primary) 52%, transparent);
+  background:
+    linear-gradient(118deg, color-mix(in srgb, var(--theme-surface) 94%, transparent), transparent 76%),
+    radial-gradient(circle at 82% 20%, color-mix(in srgb, var(--cover-secondary) 31%, transparent), transparent 36%),
+    color-mix(in srgb, var(--theme-surface) 76%, transparent);
+}
+
+[data-theme="prism"] .theme-studio__palette-preview,
+[data-theme="prism"] .theme-studio__control-card,
+[data-theme="prism"] .theme-studio__preview-card {
+  border-color: color-mix(in srgb, var(--theme-primary) 42%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--theme-surface) 88%, transparent), color-mix(in srgb, var(--cover-secondary) 7%, transparent));
+}
+
+[data-theme="prism"] .theme-studio__preview-art {
+  clip-path: polygon(8% 0, 100% 7%, 92% 100%, 0 91%);
+}
+
+[data-theme="cyber"] .theme-studio__hero,
+[data-theme="cyber"] .theme-studio__surface {
+  border-radius: 0;
+  border-left: 0.35rem solid var(--theme-secondary);
+  background:
+    linear-gradient(90deg, transparent 49.8%, color-mix(in srgb, var(--theme-primary) 10%, transparent) 50%, transparent 50.2%),
+    linear-gradient(transparent 49.8%, color-mix(in srgb, var(--theme-secondary) 8%, transparent) 50%, transparent 50.2%),
+    rgba(3, 18, 24, 0.9);
+  background-size: 3rem 3rem, 3rem 3rem, auto;
+}
+
+[data-theme="cyber"] .theme-studio__palette-preview,
+[data-theme="cyber"] .theme-studio__control-card,
+[data-theme="cyber"] .theme-studio__choice,
+[data-theme="cyber"] .theme-studio__preview-card,
+[data-theme="cyber"] .theme-studio__mapping-row {
+  border-radius: 0;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 9px 100%, 0 calc(100% - 9px));
+}
+
+[data-theme="cyber"] .theme-studio__preview-art {
+  border-radius: 0;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 5px, rgba(84, 255, 225, 0.12) 6px 7px),
+    linear-gradient(135deg, var(--preview-bg), var(--preview-a) 62%, var(--preview-b));
+}
+
+[data-theme="cyber"] .theme-studio__mapping-row {
+  border-right: 0;
+  border-left: 3px solid color-mix(in srgb, var(--theme-primary) 72%, transparent);
+}
+
+[data-theme="bloom"] .theme-studio__hero {
+  min-height: clamp(24rem, 52vh, 39rem);
+  border-radius: clamp(2.5rem, 8vw, 8rem) clamp(2.5rem, 8vw, 8rem) 2rem 2rem;
+  background:
+    radial-gradient(circle at 86% 12%, color-mix(in srgb, var(--cover-primary) 42%, transparent), transparent 34%),
+    linear-gradient(145deg, rgba(255, 184, 205, 0.2), rgba(74, 45, 72, 0.52));
+}
+
+[data-theme="bloom"] .theme-studio__surface {
+  border-radius: 2.5rem;
+  background: color-mix(in srgb, var(--theme-surface) 82%, transparent);
+}
+
+[data-theme="bloom"] .theme-studio__palette-preview,
+[data-theme="bloom"] .theme-studio__control-card {
+  border-radius: 2rem;
+}
+
+[data-theme="bloom"] .theme-studio__cover,
+[data-theme="bloom"] .theme-studio__preview-art {
+  border-radius: 50%;
+}
+
+[data-theme="bloom"] .theme-studio__choice,
+[data-theme="bloom"] .theme-studio__preview-card,
+[data-theme="bloom"] .theme-studio__mapping-row {
+  border-radius: 1.6rem;
+}
+
+[data-theme="pixel"] .theme-studio__hero,
+[data-theme="pixel"] .theme-studio__surface,
+[data-theme="pixel"] .theme-studio__palette-preview,
+[data-theme="pixel"] .theme-studio__control-card,
+[data-theme="pixel"] .theme-studio__choice,
+[data-theme="pixel"] .theme-studio__preview-card,
+[data-theme="pixel"] .theme-studio__mapping-row {
+  border-width: 3px;
+  border-radius: 0;
+  background-color: #1c1541;
+  box-shadow: 6px 6px 0 #050317;
+}
+
+[data-theme="pixel"] .theme-studio__hero {
+  border-width: 4px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 7px, rgba(0, 0, 0, 0.17) 8px 10px),
+    #1c1541;
+}
+
+[data-theme="pixel"] .theme-studio__preview-art,
+[data-theme="pixel"] .theme-studio__cover {
+  border-width: 3px;
+  border-radius: 0;
+  image-rendering: pixelated;
+  box-shadow: 4px 4px 0 #050317;
+}
+
+[data-theme="pixel"] .theme-studio__preview-art::before,
+[data-theme="pixel"] .theme-studio__preview-art::after {
+  border-width: 3px;
+  border-radius: 0;
+}
+
+[data-theme="rock"] .theme-studio__hero {
+  border-width: 3px;
+  border-radius: 0;
+  clip-path: polygon(0 0, 96% 0, 100% 6%, 98% 28%, 100% 51%, 97% 76%, 100% 100%, 3% 98%, 0 88%, 2% 61%, 0 34%);
+  background:
+    repeating-linear-gradient(168deg, transparent 0 18px, rgba(255, 255, 255, 0.035) 19px 21px),
+    linear-gradient(145deg, rgba(52, 37, 33, 0.97), rgba(17, 13, 12, 0.7));
+}
+
+[data-theme="rock"] .theme-studio__surface,
+[data-theme="rock"] .theme-studio__palette-preview,
+[data-theme="rock"] .theme-studio__control-card,
+[data-theme="rock"] .theme-studio__choice,
+[data-theme="rock"] .theme-studio__preview-card,
+[data-theme="rock"] .theme-studio__mapping-row {
+  border-radius: 0;
+  border-width: 2px;
+  background: linear-gradient(101deg, rgba(255, 101, 63, 0.08), transparent 42%), #251c19;
+}
+
+[data-theme="rock"] .theme-studio__cover,
+[data-theme="rock"] .theme-studio__preview-art {
+  border: 0.3rem solid #e3d3b5;
+  border-radius: 0;
+  filter: contrast(108%) saturate(90%);
+  box-shadow: 0.45rem 0.55rem 0 rgba(0, 0, 0, 0.72);
+}
+
+[data-theme="rock"] .theme-studio__mapping-row {
+  border-width: 0 0 2px;
+  background: linear-gradient(90deg, rgba(255, 101, 63, 0.12), transparent 48%);
+  box-shadow: none;
+}
+
+[data-theme="cinematic"] .theme-studio__hero {
+  min-height: clamp(25rem, 56vh, 42rem);
+  border-width: 1px 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse 42% 100% at 50% -8%, rgba(255, 244, 211, 0.24), transparent 72%),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.55), transparent 22% 78%, rgba(0, 0, 0, 0.55)),
+    rgba(17, 20, 26, 0.74);
+}
+
+[data-theme="cinematic"] .theme-studio__surface {
+  border-radius: 0;
+  box-shadow:
+    inset 0 0 0 3px rgba(231, 201, 137, 0.055),
+    0 1.8rem 4.8rem rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="cinematic"] .theme-studio__palette-preview,
+[data-theme="cinematic"] .theme-studio__control-card,
+[data-theme="cinematic"] .theme-studio__choice,
+[data-theme="cinematic"] .theme-studio__preview-card,
+[data-theme="cinematic"] .theme-studio__mapping-row {
+  border-radius: 0;
+}
+
+[data-theme="cinematic"] .theme-studio__cover,
+[data-theme="cinematic"] .theme-studio__preview-art {
+  border-radius: 0;
+  outline: 1px solid var(--theme-primary);
+  outline-offset: -0.35rem;
+}
+
+[data-theme="cinematic"] .theme-studio__preview-art {
+  clip-path: polygon(12% 0, 88% 0, 100% 12%, 100% 88%, 88% 100%, 12% 100%, 0 88%, 0 12%);
+}
+
+[data-theme="lounge"] .theme-studio__hero {
+  border-color: var(--theme-primary);
+  border-radius: 50% 50% 1.4rem 1.4rem / 14% 14% 1.4rem 1.4rem;
+  background:
+    radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--cover-primary) 24%, transparent), transparent 34%),
+    linear-gradient(155deg, rgba(25, 47, 44, 0.86), rgba(8, 13, 13, 0.76));
+}
+
+[data-theme="lounge"] .theme-studio__surface {
+  border-color: color-mix(in srgb, var(--theme-primary) 52%, transparent);
+  background: rgba(8, 13, 13, 0.8);
+}
+
+[data-theme="lounge"] .theme-studio__palette-preview,
+[data-theme="lounge"] .theme-studio__control-card {
+  border-color: var(--theme-primary);
+  background: rgba(16, 29, 28, 0.86);
+}
+
+[data-theme="lounge"] .theme-studio__cover,
+[data-theme="lounge"] .theme-studio__preview-art {
+  border: 0.35rem solid #050808;
+  border-radius: 50%;
+  box-shadow: 0 1rem 2.4rem rgba(0, 0, 0, 0.64), 0 0 0 1px var(--theme-primary);
+}
+
+[data-theme="lounge"] .theme-studio__choice,
+[data-theme="lounge"] .theme-studio__preview-card,
+[data-theme="lounge"] .theme-studio__mapping-row {
+  border-radius: 0 999px 999px 0;
+}
+
 /* Wide stages intentionally reorganize only visual regions; DOM and focus order stay stable. */
 @media (min-width: 1180px) {
   [data-theme] .view {
@@ -1029,7 +1284,7 @@
 
   [data-theme="cyber"] .navigation-rail {
     display: grid;
-    grid-template-columns: auto minmax(18rem, 1fr) auto;
+    grid-template-columns: auto minmax(24rem, 1fr) auto;
     align-items: center;
     gap: 1.2rem;
     height: auto;
@@ -1040,7 +1295,7 @@
   }
 
   [data-theme="cyber"] .primary-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   [data-theme="cyber"] .server-status {
@@ -1091,7 +1346,24 @@
 
   [data-theme="bloom"] .primary-nav,
   [data-theme="cinematic"] .primary-nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  [data-theme="cyber"] .primary-nav button,
+  [data-theme="bloom"] .primary-nav button,
+  [data-theme="cinematic"] .primary-nav button {
+    grid-template-columns: 1.2rem minmax(0, 1fr);
+    gap: 0.35rem;
+    padding-inline: 0.5rem;
+  }
+
+  [data-theme="cyber"] .primary-nav button > span:last-child,
+  [data-theme="bloom"] .primary-nav button > span:last-child,
+  [data-theme="cinematic"] .primary-nav button > span:last-child {
+    overflow: hidden;
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   [data-theme="bloom"] .server-status,
@@ -1474,6 +1746,27 @@
   [data-theme] .view-hero h1,
   [data-theme] .view-hero h1 + p {
     margin-inline: 0;
+  }
+
+  [data-theme] .theme-studio__hero {
+    min-height: 0;
+    border-radius: var(--card-radius);
+    clip-path: none;
+    text-align: left;
+    transform: none;
+  }
+
+  [data-theme] .theme-studio__surface {
+    border-radius: var(--card-radius);
+    clip-path: none;
+  }
+
+  [data-theme="cinematic"] .theme-studio__hero {
+    border-inline: var(--frame);
+  }
+
+  [data-theme="lounge"] .theme-studio__hero {
+    border-radius: var(--card-radius);
   }
 
   [data-theme] .album-card__artwork {
