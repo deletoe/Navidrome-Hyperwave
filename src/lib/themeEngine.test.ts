@@ -105,10 +105,12 @@ describe("visual personality engine", () => {
     expect(new Set(themes.map(({ scene }) => scene.layout)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.transition)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.asset)).size).toBe(7);
+    expect(new Set(themes.map(({ scene }) => scene.foregroundAsset)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.displayFont)).size).toBe(7);
     expect(new Set(themes.map(({ scene }) => scene.bodyFont)).size).toBe(7);
     for (const theme of themes) {
       expect(theme.scene.asset).toMatch(/^\/assets\/themes\//);
+      expect(theme.scene.foregroundAsset).toMatch(/^\/assets\/themes\//);
       expect(theme.scene.displayFont).not.toHaveLength(0);
       expect(theme.scene.bodyFont).not.toHaveLength(0);
     }
@@ -119,6 +121,7 @@ describe("visual personality engine", () => {
 
     expect(themeToCssVars(theme)).toMatchObject({
       "--theme-art": `url("${theme.scene.asset}")`,
+      "--theme-foreground": `url("${theme.scene.foregroundAsset}")`,
       "--display-font": theme.scene.displayFont,
       "--body-font": theme.scene.bodyFont,
       "--control-duration": "150ms",

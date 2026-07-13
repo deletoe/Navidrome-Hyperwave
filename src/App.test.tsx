@@ -469,6 +469,12 @@ describe("compact player interactions", () => {
     );
 
     const close = screen.getByRole("button", { name: "Close playback queue" });
+    const queuedTrack = screen.getByRole("button", { name: "Play Blue Hour from queue" });
+    const fallbackArtwork = queuedTrack.querySelector(".queue-list__artwork");
+    const queueIndex = queuedTrack.querySelector(".queue-list__index");
+    expect(fallbackArtwork).toHaveClass("artwork--fallback");
+    expect(fallbackArtwork).not.toHaveClass("queue-list__index");
+    expect(queueIndex).toHaveTextContent("01");
     close.focus();
     expect(close).toHaveFocus();
     await user.keyboard("{Escape}");
@@ -711,6 +717,8 @@ describe("state coordination regressions", () => {
     const shell = document.querySelector<HTMLElement>(".app-shell")!;
     const playerDock = document.querySelector<HTMLElement>(".player-dock")!;
     const audio = playerDock.querySelector<HTMLAudioElement>("audio")!;
+    const heroMedia = document.querySelector<HTMLElement>(".hero-media")!;
+    const foreground = heroMedia.querySelector<HTMLImageElement>(".hero-media__artifact")!;
     const focusedControl = within(playerDock).getByRole("button", {
       name: "Open playback queue",
     });
@@ -727,6 +735,10 @@ describe("state coordination regressions", () => {
     expect(document.querySelector(".app-shell")).toBe(shell);
     expect(document.querySelector(".player-dock")).toBe(playerDock);
     expect(playerDock.querySelector("audio")).toBe(audio);
+    expect(document.querySelector(".hero-media")).toBe(heroMedia);
+    expect(heroMedia.querySelector(".hero-media__artifact")).toBe(foreground);
+    expect(foreground).toHaveAttribute("src", "/assets/themes/rock-foreground.webp");
+    expect(document.querySelectorAll(".hero-media")).toHaveLength(1);
     expect(focusedControl).toHaveFocus();
     expect(document.querySelectorAll(".theme-burst")).toHaveLength(1);
     expect(newBurst).not.toBe(oldBurst);

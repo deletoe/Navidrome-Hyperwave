@@ -104,6 +104,7 @@ export interface VisualThemeScene {
   layout: "workstation" | "console" | "garden" | "quest" | "zine" | "screening" | "club";
   transition: "refract" | "scan" | "bloom" | "blocks" | "tear" | "curtain" | "smoke";
   asset: string;
+  foregroundAsset: string;
   assetMode: "cover" | "tile" | "pixel";
   displayFont: string;
   bodyFont: string;

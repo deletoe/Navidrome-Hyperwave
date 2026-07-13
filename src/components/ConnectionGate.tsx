@@ -3,12 +3,14 @@ import { useState, type FormEvent } from "react";
 import type { ConnectionInput } from "../hooks/useNavidrome";
 import type { AuthMode } from "../types";
 import { AppIcon } from "./AppIcon";
+import { HeroMedia } from "./HeroMedia";
 
 export interface ConnectionGateProps {
   rememberedServerUrl: string;
   rememberedUsername: string;
   isConnecting: boolean;
   error?: string;
+  themeAsset?: string;
   onConnect: (input: ConnectionInput) => void | Promise<void>;
 }
 export function ConnectionGate({
@@ -16,6 +18,7 @@ export function ConnectionGate({
   rememberedUsername,
   isConnecting,
   error,
+  themeAsset = "",
   onConnect,
 }: ConnectionGateProps) {
   const [serverUrl, setServerUrl] = useState(rememberedServerUrl);
@@ -136,6 +139,7 @@ export function ConnectionGate({
         </form>
       </section>
       <aside className="connection-gate__signal" aria-label="Session privacy">
+        <HeroMedia asset={themeAsset} className="hero-media--connection" />
         <span aria-hidden="true">56</span>
         <h2>Private listening session</h2>
         <p>Only the normalized server address and username may be remembered.</p>

@@ -3,10 +3,13 @@ import type { HomeSection, HomeState } from "../hooks/useNavidrome";
 import type { Album } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
+import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 
 export interface HomeViewProps {
   home: HomeState;
   coverUrl: (coverArt?: string, size?: number) => string;
+  themeAsset?: string;
+  activeCoverUrl?: string;
   onOpenAlbum: (album: Album) => void;
   onOpenGenre: (genre: string) => void;
   onRetry: (section?: Exclude<HomeSection, "starred">) => void;
@@ -15,12 +18,19 @@ export interface HomeViewProps {
 export function HomeView({
   home,
   coverUrl,
+  themeAsset = "",
+  activeCoverUrl,
   onOpenAlbum,
   onOpenGenre,
   onRetry,
 }: HomeViewProps) {
   const loadingSections = home.loadingSections ?? {};
   const anySectionLoading = Object.values(loadingSections).some(Boolean);
+  const heroCovers = resolveHeroCovers(
+    activeCoverUrl,
+    [home.newest, home.random, home.frequent],
+    coverUrl,
+  );
 
   return (
     <div className="view view--home" aria-busy={home.loading || anySectionLoading}>
@@ -30,6 +40,7 @@ export function HomeView({
           <h1>Your archive, in motion</h1>
           <p>Move between recent arrivals, deep cuts, familiar records, and every genre channel.</p>
         </div>
+        <HeroMedia asset={themeAsset} covers={heroCovers} />
         <button
           className="button-with-icon"
           type="button"

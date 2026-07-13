@@ -3,11 +3,13 @@ import { useEffect, useId, useRef, type Dispatch } from "react";
 import { formatDuration } from "../lib/format";
 import type { QueueAction, QueueState, RepeatMode } from "../state/playerQueue";
 import { AppIcon } from "./AppIcon";
+import { Artwork } from "./Artwork";
 
 export interface QueuePanelProps {
   queuePanelId: string;
   state: QueueState;
   open: boolean;
+  coverUrl?: (coverArt?: string, size?: number) => string;
   onClose: () => void;
   onSelectAndPlay: (index: number) => void;
   dispatch: Dispatch<QueueAction>;
@@ -19,6 +21,7 @@ export function QueuePanel({
   queuePanelId,
   state,
   open,
+  coverUrl,
   onClose,
   onSelectAndPlay,
   dispatch,
@@ -179,7 +182,17 @@ export function QueuePanel({
                   aria-current={current ? "true" : undefined}
                   onClick={() => onSelectAndPlay(index)}
                 >
-                  <span aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="queue-list__visual" aria-hidden="true">
+                    <Artwork
+                      className="queue-list__artwork"
+                      src={coverUrl?.(track.coverArt, 96)}
+                      alt=""
+                      decorative
+                    />
+                    <span className="queue-list__index">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                  </span>
                   <span>
                     <strong>{track.title}</strong>
                     <span>{track.displayArtist || track.artist || "Unknown artist"}</span>

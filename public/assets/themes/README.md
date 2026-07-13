@@ -34,6 +34,22 @@ The original generator outputs and localized Rock edit remain in the local Codex
 
 > Create a square 2048 by 2048 original crop-safe late-night listening lounge atmosphere, empty and abstracted: deep black-green room, slow translucent teal smoke, thin brushed-brass arcs and low pools of warm light, refined art-deco geometry kept near the perimeter, calm dark center. No musician, no guest, no bottles, no labels, no signage, no real venue, no text, no letters, no numbers.
 
+## Foreground artifacts
+
+Seven additional portrait artifacts were generated with the built-in OpenAI image generator on 2026-07-13. They are foreground feature cards rather than ambient backgrounds and are composed with live Navidrome cover art by `HeroMedia`. No user image, album cover, artist identity, server data, or library metadata was supplied to generation.
+
+| Personality | Delivery asset | Generator brief |
+| --- | --- | --- |
+| Prism Archive | `prism-foreground.webp` | Floating optical-glass prism shards around a luminous record-like core in a midnight navy studio; cyan/violet caustics; premium editorial 3D still life. |
+| Neon Circuit | `cyber-foreground.webp` | Abstract modular sound-machine sculpture combining cassette, synth, cable and circuit forms; near-black teal with cyan/magenta emission. |
+| Soft Bloom | `bloom-foreground.webp` | Translucent petal sculpture orbiting a pearlescent music sphere with chrome rings; blush, lilac and mint dream studio. |
+| Pixel Quest | `pixel-foreground.png` | 32-color pixel-art fantasy music altar with cartridge relic, speaker towers, headphones and glowing music gems in a violet dungeon. |
+| Riot Stage | `rock-foreground.webp` | Battered amplifier, drumsticks and cable arranged as a torn-paper, black-tape backstage zine collage under burnt-orange light. |
+| Silver Screen | `cinematic-foreground.webp` | Symmetrical art-deco projector, reel, black velvet and golden beam in a deep screening room. |
+| Midnight Club | `lounge-foreground.webp` | Brass turntable, blank velvet sleeve, curved acoustic fins and cocktail-table plinth in a smoky emerald lounge. |
+
+Every brief specified a centered 4:5 portrait feature object with generous crop padding and prohibited people, readable text, letters, logos, watermarks, brands and recognizable intellectual property. Rock additionally required every paper surface to remain blank; Lounge required blank record and sleeve labels; Cinematic prohibited titles and studio marks; Pixel required hard square pixels with no smoothing.
+
 ## Rock cleanup edit
 
 The first Rock output contained a tiny generated pseudo-wordmark on the bass-drum head. No external reference was added. The built-in editor received this exact instruction, and the edited output is stored as `exec-840c88b1-de3e-45e3-9329-dc52e1032d4d.png`:
@@ -46,3 +62,4 @@ The first Rock output contained a tiny generated pseudo-wordmark on the bass-dru
 - Cyber was center-cropped, wrap-shifted, seam-softened, resized to 1024 px, and exported as metadata-free WebP at quality 82.
 - Pixel was wrap-shifted, reduced to a 32 by 32 logical grid, quantized to 32 colors without dithering, and enlarged with nearest-neighbor sampling to a 256 by 256 indexed PNG.
 - A generated contact sheet was inspected for text, logos, people, recognizable intellectual property, center obstruction, and obvious crop failures before the assets were committed.
+- Foreground WebP assets were resized to 768×960, exported as metadata-free RGB WebP at quality 82, and visually inspected individually. Pixel was nearest-neighbor resized to 512×640 and quantized to 64 indexed colors without dithering. The original generator outputs remain in the local generated-image store.

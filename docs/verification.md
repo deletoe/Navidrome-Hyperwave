@@ -12,18 +12,18 @@ npm run test:run && npm run typecheck && npm run build && npm audit --audit-leve
 
 Result:
 
-- Vitest 4.1.10: 10 test files passed, 115 tests passed, 0 failed.
+- Vitest 4.1.10: 12 test files passed, 124 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
-- Vite 6.4.3 production build: exit 0, 1,605 modules transformed.
-- Production bundle: CSS 65.61 kB (11.99 kB gzip), JS 280.21 kB (84.90 kB gzip).
+- Vite 6.4.3 production build: exit 0, 1,606 modules transformed.
+- Production bundle: CSS 73.42 kB (13.66 kB gzip), JS 283.41 kB (85.70 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now covers authentication and response parsing, stable media URLs, queue identity and boundaries, audio cleanup/scrobble/Media Session lifecycle, session concurrency, targeted retries, stale-detail invalidation, favorite rollback, modal focus coordination, decorative icon accessibility, seven unique scene contracts, generated-art CSS variables, inert transition rendering, committed-only theme sequencing, and real Cyber-to-Rock preservation of the App, shell, player, audio and focused DOM nodes.
+The suite now covers authentication and response parsing, stable media URLs, queue identity and boundaries, audio cleanup/scrobble/Media Session lifecycle, session concurrency, targeted retries, stale-detail invalidation, favorite rollback, modal focus coordination, decorative icon accessibility, seven unique scene and foreground-art contracts, generated-art CSS variables, inert transition rendering, decorative artwork fallback semantics, HeroMedia deduplication/loading/error recovery, committed-only theme sequencing, and real Cyber-to-Rock preservation of the App, shell, player, audio, HeroMedia and focused DOM nodes.
 
 ## Local server and credential boundary
 
 - Address: `http://127.0.0.1:5173/`
-- Listener: Node PID `6373`, bound only to `127.0.0.1:5173`.
+- Listener: Node PID `36244`, bound only to `127.0.0.1:5173`.
 - Vite uses `strictPort: true`; it fails instead of silently selecting another port.
 - The user-authored credential document remains outside the build and is denied by the dev server: `/docs/requirements.md` returns HTTP 403.
 - Theme art is publicly served as intended; `/assets/themes/prism-ambient.webp` returns HTTP 200 with the expected 47,434-byte body.
@@ -44,6 +44,32 @@ Seven project-owned ambient images were generated with the built-in image genera
 | Lounge | WebP, 1254×1254 | 41,972 |
 
 Total delivery size is 381,263 bytes. Pillow inspection found zero EXIF/XMP/ICC payloads. A source-art contact sheet and a 3×3 Cyber/Pixel tiling sheet were visually checked for text, logos, people, recognizable intellectual property, crop failures, center obstruction and edge failures. A tiny generated pseudo-wordmark found on the first Rock drum head was removed with a localized built-in image edit and the full instruction was added to provenance. Exact prompts and post-processing are recorded in `public/assets/themes/README.md`; no user library data was supplied to image generation or editing.
+
+Seven additional foreground artifacts were generated with the built-in image generator on 2026-07-13 and composed with real library covers only at runtime:
+
+| Asset | Format and dimensions | Bytes |
+| --- | --- | ---: |
+| Prism foreground | WebP, 768×960 | 83,816 |
+| Cyber foreground | WebP, 768×960 | 99,540 |
+| Bloom foreground | WebP, 768×960 | 55,048 |
+| Pixel foreground | indexed PNG, 512×640, 64 colors | 126,222 |
+| Rock foreground | WebP, 768×960 | 188,180 |
+| Cinematic foreground | WebP, 768×960 | 84,354 |
+| Lounge foreground | WebP, 768×960 | 53,010 |
+
+Foreground delivery size is 690,170 bytes; ambient and foreground theme media total 1,071,433 bytes. All seven artifacts were individually inspected at original detail for composition, text, logos, people and crop safety. The exact generator briefs, restrictions, output-store generation ID and normalization steps are recorded in `public/assets/themes/README.md`.
+
+## Foreground media acceptance
+
+The real local app was rechecked in the in-app browser at its default 1280×720 viewport and at 390×844:
+
+- Prism Home loaded `/assets/themes/prism-foreground.webp` at its natural 768×960 dimensions and three distinct live 512×512 Navidrome covers inside one 240×320 HeroMedia stage.
+- Playing `电子音乐` switched the existing stage to the Cyber console composition and `/assets/themes/cyber-foreground.webp`; all 80 visible track rows requested 128×128 cover art and all 80 queue entries requested 96×96 cover art.
+- Playing `摇滚` switched to the materially different torn-zine layout and `/assets/themes/rock-foreground.webp`, while retaining one audio node, one HeroMedia root and zero horizontal overflow.
+- At 390×844 the Rock HeroMedia stage measured 327×192, document scroll width equaled 390px, the smallest sampled visible button dimension was 44px, and no decorative image was broken.
+- The responsive Rock page contained 164 decorative theme/cover image nodes with empty alt text, `HeroMedia` exposed `aria-hidden=true`, and it contained zero interactive descendants.
+
+Visual inspection confirmed that foreground art is part of the information hierarchy rather than a second full-page background: theme artifacts occupy the hero stage, live covers overlap them as physical media, artist cards use image-led proportions, and track/queue thumbnails remain readable at dense list scale.
 
 ## Live Navidrome/API checks
 

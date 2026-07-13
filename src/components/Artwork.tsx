@@ -5,6 +5,7 @@ export interface ArtworkProps {
   alt: string;
   className?: string;
   eager?: boolean;
+  decorative?: boolean;
 }
 function initials(label: string): string {
   const words = label
@@ -18,7 +19,13 @@ function initials(label: string): string {
     .join("") || "♪";
 }
 
-export function Artwork({ src, alt, className = "", eager = false }: ArtworkProps) {
+export function Artwork({
+  src,
+  alt,
+  className = "",
+  eager = false,
+  decorative = false,
+}: ArtworkProps) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -26,6 +33,16 @@ export function Artwork({ src, alt, className = "", eager = false }: ArtworkProp
   }, [src]);
 
   if (!src || failed) {
+    if (decorative) {
+      return (
+        <span
+          className={`artwork artwork--fallback ${className}`.trim()}
+          aria-hidden="true"
+        >
+          <span aria-hidden="true">♪</span>
+        </span>
+      );
+    }
     return (
       <span
         className={`artwork artwork--fallback ${className}`.trim()}
@@ -41,7 +58,8 @@ export function Artwork({ src, alt, className = "", eager = false }: ArtworkProp
     <img
       className={`artwork ${className}`.trim()}
       src={src}
-      alt={alt}
+      alt={decorative ? "" : alt}
+      aria-hidden={decorative || undefined}
       loading={eager ? "eager" : "lazy"}
       decoding="async"
       onError={() => setFailed(true)}

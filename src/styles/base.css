@@ -17,6 +17,7 @@
   --display-font: Inter, ui-sans-serif, system-ui, sans-serif;
   --body-font: Inter, ui-sans-serif, system-ui, sans-serif;
   --theme-art: none;
+  --theme-foreground: none;
   --theme-art-size: cover;
   --theme-art-position: center;
   --card-radius: 18px;

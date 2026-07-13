@@ -196,6 +196,8 @@ export default function App() {
         <HomeView
           home={navidrome.home}
           coverUrl={coverUrl}
+          themeAsset={theme.scene.foregroundAsset}
+          activeCoverUrl={coverUrl(currentTrack?.coverArt, 512)}
           onOpenAlbum={openAlbum}
           onOpenGenre={openGenre}
           onRetry={(section) => {
@@ -214,6 +216,8 @@ export default function App() {
           error={navidrome.searchError}
           starredIds={navidrome.starredIds}
           coverUrl={coverUrl}
+          themeAsset={theme.scene.foregroundAsset}
+          activeCoverUrl={coverUrl(currentTrack?.coverArt, 512)}
           currentTrackId={currentTrack?.id}
           onSearch={(query) => void navidrome.search(query)}
           onOpenAlbum={openAlbum}
@@ -236,6 +240,8 @@ export default function App() {
           }
           error={navidrome.home.warnings.starred}
           coverUrl={coverUrl}
+          themeAsset={theme.scene.foregroundAsset}
+          activeCoverUrl={coverUrl(currentTrack?.coverArt, 512)}
           currentTrackId={currentTrack?.id}
           onRetry={() => void navidrome.retryHomeSection("starred")}
           onOpenAlbum={openAlbum}
@@ -258,6 +264,8 @@ export default function App() {
         starredIds={navidrome.starredIds}
         currentTrackId={currentTrack?.id}
         coverUrl={coverUrl}
+        themeAsset={theme.scene.foregroundAsset}
+        activeCoverUrl={coverUrl(currentTrack?.coverArt, 512)}
         onBack={closeDetail}
         onRetry={retryDetail}
         onOpenAlbum={openAlbum}
@@ -290,6 +298,7 @@ export default function App() {
           rememberedUsername={navidrome.rememberedUsername}
           isConnecting={navidrome.isConnecting}
           error={navidrome.connectionError}
+          themeAsset={theme.scene.foregroundAsset}
           onConnect={navidrome.connect}
         />
         <Toast
@@ -349,6 +358,7 @@ export default function App() {
             queuePanelId={queuePanelId}
             state={queueState}
             open={queueOpen}
+            coverUrl={coverUrl}
             onClose={() => setQueueOpen(false)}
             onSelectAndPlay={selectAndPlayFromQueue}
             dispatch={dispatch}

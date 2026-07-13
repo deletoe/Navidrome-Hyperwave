@@ -3,6 +3,7 @@ import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
+import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
 
 export interface FavoritesViewProps {
@@ -13,6 +14,8 @@ export interface FavoritesViewProps {
   loading: boolean;
   error?: string;
   coverUrl: (coverArt?: string, size?: number) => string;
+  themeAsset?: string;
+  activeCoverUrl?: string;
   currentTrackId?: string;
   onRetry: () => void;
   onOpenAlbum: (album: Album) => void;
@@ -29,6 +32,8 @@ export function FavoritesView({
   loading,
   error,
   coverUrl,
+  themeAsset = "",
+  activeCoverUrl,
   currentTrackId,
   onRetry,
   onOpenAlbum,
@@ -38,6 +43,7 @@ export function FavoritesView({
   onToggleStar,
 }: FavoritesViewProps) {
   const total = songs.length + albums.length + artists.length;
+  const heroCovers = resolveHeroCovers(activeCoverUrl, [albums, songs, artists], coverUrl);
 
   return (
     <div className="view view--favorites" aria-busy={loading}>
@@ -47,6 +53,7 @@ export function FavoritesView({
           <h1>Your favorites</h1>
           <p>{formatCount(total)} saved songs, albums, and artists in this archive.</p>
         </div>
+        <HeroMedia asset={themeAsset} covers={heroCovers} />
         <button className="button-with-icon" type="button" onClick={onRetry} disabled={loading}>
           <AppIcon name={loading ? "loading" : "refresh"} className={loading ? "is-spinning" : ""} />
           {loading ? "Refreshing…" : "Refresh favorites"}
@@ -82,6 +89,7 @@ export function FavoritesView({
           tracks={songs}
           starredIds={starredIds}
           currentTrackId={currentTrackId}
+          coverUrl={coverUrl}
           onPlay={onPlay}
           onAddToQueue={onAddToQueue}
           onToggleStar={onToggleStar}

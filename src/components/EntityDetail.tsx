@@ -3,6 +3,7 @@ import type { Album, Artist, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
+import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
 
 export type DetailKind = "album" | "artist" | "genre";
@@ -18,6 +19,8 @@ export interface EntityDetailProps {
   starredIds: ReadonlySet<string>;
   currentTrackId?: string;
   coverUrl: (coverArt?: string, size?: number) => string;
+  themeAsset?: string;
+  activeCoverUrl?: string;
   onBack: () => void;
   onRetry: () => void;
   onOpenAlbum: (album: Album) => void;
@@ -39,6 +42,8 @@ export function EntityDetail({
   starredIds,
   currentTrackId,
   coverUrl,
+  themeAsset = "",
+  activeCoverUrl,
   onBack,
   onRetry,
   onOpenAlbum,
@@ -100,12 +105,19 @@ export function EntityDetail({
       {!loading && !error && kind === "album" && album ? (
         <>
           <header className="entity-hero entity-hero--album">
-            <Artwork
-              className="entity-hero__artwork"
-              src={coverUrl(album.coverArt, 720)}
-              alt={`${album.name} cover`}
-              eager
-            />
+            <div className="entity-hero__media">
+              <HeroMedia
+                asset={themeAsset}
+                covers={resolveHeroCovers(activeCoverUrl, [albumTracks], coverUrl)}
+                className="hero-media--entity"
+              />
+              <Artwork
+                className="entity-hero__artwork"
+                src={coverUrl(album.coverArt, 720)}
+                alt={`${album.name} cover`}
+                eager
+              />
+            </div>
             <div>
               <p className="eyebrow">Album detail</p>
               <h1>{album.name}</h1>
@@ -142,6 +154,7 @@ export function EntityDetail({
             tracks={albumTracks}
             starredIds={starredIds}
             currentTrackId={currentTrackId}
+            coverUrl={coverUrl}
             emptyMessage="This album did not include a song list."
             onRetry={onRetry}
             onPlay={onPlay}
@@ -154,12 +167,19 @@ export function EntityDetail({
       {!loading && !error && kind === "artist" && artist ? (
         <>
           <header className="entity-hero entity-hero--artist">
-            <Artwork
-              className="entity-hero__artwork"
-              src={coverUrl(artist.coverArt, 720)}
-              alt={`${artist.name} artwork`}
-              eager
-            />
+            <div className="entity-hero__media">
+              <HeroMedia
+                asset={themeAsset}
+                covers={resolveHeroCovers(activeCoverUrl, [artist.album ?? []], coverUrl)}
+                className="hero-media--entity"
+              />
+              <Artwork
+                className="entity-hero__artwork"
+                src={coverUrl(artist.coverArt, 720)}
+                alt={`${artist.name} artwork`}
+                eager
+              />
+            </div>
             <div>
               <p className="eyebrow">Artist detail</p>
               <h1>{artist.name}</h1>
@@ -205,12 +225,17 @@ export function EntityDetail({
                 </button>
               </div>
             </div>
+            <HeroMedia
+              asset={themeAsset}
+              covers={resolveHeroCovers(activeCoverUrl, [genreTracks], coverUrl)}
+            />
           </header>
           <TrackList
             title={`${genre} songs`}
             tracks={genreTracks}
             starredIds={starredIds}
             currentTrackId={currentTrackId}
+            coverUrl={coverUrl}
             emptyMessage="No songs were returned for this genre."
             onRetry={onRetry}
             onPlay={onPlay}

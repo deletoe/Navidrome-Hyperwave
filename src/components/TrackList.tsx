@@ -3,6 +3,7 @@ import { useId } from "react";
 import { formatDuration } from "../lib/format";
 import type { Track } from "../types";
 import { AppIcon } from "./AppIcon";
+import { Artwork } from "./Artwork";
 
 export interface TrackListProps {
   title: string;
@@ -12,6 +13,7 @@ export interface TrackListProps {
   onAddToQueue: (track: Track) => void;
   onToggleStar: (track: Track) => void;
   currentTrackId?: string;
+  coverUrl?: (coverArt?: string, size?: number) => string;
   loading?: boolean;
   error?: string;
   emptyMessage?: string;
@@ -26,6 +28,7 @@ export function TrackList({
   onAddToQueue,
   onToggleStar,
   currentTrackId,
+  coverUrl,
   loading = false,
   error,
   emptyMessage = "No songs are available here yet.",
@@ -78,8 +81,14 @@ export function TrackList({
                 data-current={currentTrackId === track.id || undefined}
                 key={track.id}
               >
-                <span className="track-row__number" aria-hidden="true">
-                  {track.track ?? index + 1}
+                <span className="track-row__visual" aria-hidden="true">
+                  <Artwork
+                    className="track-row__artwork"
+                    src={coverUrl?.(track.coverArt, 128)}
+                    alt=""
+                    decorative
+                  />
+                  <span className="track-row__number">{track.track ?? index + 1}</span>
                 </span>
                 <span className="track-row__identity">
                   <strong>{track.title}</strong>

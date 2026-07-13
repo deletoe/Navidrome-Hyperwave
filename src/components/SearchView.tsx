@@ -5,6 +5,7 @@ import type { Album, Artist, SearchResult, Track } from "../types";
 import { AlbumShelf } from "./AlbumShelf";
 import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
+import { HeroMedia, resolveHeroCovers } from "./HeroMedia";
 import { TrackList } from "./TrackList";
 
 export interface SearchViewProps {
@@ -14,6 +15,8 @@ export interface SearchViewProps {
   error?: string;
   starredIds: ReadonlySet<string>;
   coverUrl: (coverArt?: string, size?: number) => string;
+  themeAsset?: string;
+  activeCoverUrl?: string;
   currentTrackId?: string;
   onSearch: (query: string) => void;
   onOpenAlbum: (album: Album) => void;
@@ -30,6 +33,8 @@ export function SearchView({
   error,
   starredIds,
   coverUrl,
+  themeAsset = "",
+  activeCoverUrl,
   currentTrackId,
   onSearch,
   onOpenAlbum,
@@ -53,6 +58,11 @@ export function SearchView({
     ? result.song.length + result.album.length + result.artist.length
     : 0;
   const showResult = Boolean(result) && !loading && !error;
+  const heroCovers = resolveHeroCovers(
+    activeCoverUrl,
+    [result?.album ?? [], result?.song ?? [], result?.artist ?? []],
+    coverUrl,
+  );
 
   return (
     <div className="view view--search" aria-busy={loading}>
@@ -62,6 +72,7 @@ export function SearchView({
           <h1>Search every signal</h1>
           <p>Find songs, records, and artists without leaving the current listening session.</p>
         </div>
+        <HeroMedia asset={themeAsset} covers={heroCovers} />
       </header>
 
       <form className="search-form" role="search" onSubmit={submit}>
@@ -139,6 +150,7 @@ export function SearchView({
               tracks={result.song}
               starredIds={starredIds}
               currentTrackId={currentTrackId}
+              coverUrl={coverUrl}
               onPlay={onPlay}
               onAddToQueue={onAddToQueue}
               onToggleStar={onToggleStar}
