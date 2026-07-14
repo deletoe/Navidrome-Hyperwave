@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
 import { formatDuration } from "../lib/format";
+import { VISUALIZER_MODES, type VisualizerMode } from "../lib/visualPreferences";
 import type { Artist, Track } from "../types";
 import { AppIcon } from "./AppIcon";
 import { ArtistLinks } from "./ArtistLinks";
@@ -17,7 +19,19 @@ export interface PlayerDockProps {
   onToggleStar?: () => void;
   onOpenArtist?: (artist: Artist) => void;
   onToggleQueue: () => void;
+  visualizer?: ReactNode;
+  visualizerMode?: VisualizerMode;
+  onSetVisualizerMode?: (mode: VisualizerMode) => void;
 }
+
+const VISUALIZER_MODE_LABELS: Record<VisualizerMode, string> = {
+  off: "Off",
+  spectrum: "Spectrum",
+  particles: "Particles",
+  hybrid: "Hybrid",
+};
+
+const ACTIVE_VISUALIZER_MODES: VisualizerMode[] = ["spectrum", "particles", "hybrid"];
 
 export function PlayerDock({
   currentTrack,
@@ -29,17 +43,32 @@ export function PlayerDock({
   onToggleStar,
   onOpenArtist,
   onToggleQueue,
+  visualizer,
+  visualizerMode = "hybrid",
+  onSetVisualizerMode,
 }: PlayerDockProps) {
   const [expanded, setExpanded] = useState(false);
   const expandedId = useId();
   const positionId = useId();
   const volumeId = useId();
+  const visualizerName = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const expandRef = useRef<HTMLButtonElement>(null);
+  const dockRef = useRef<HTMLElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   const restoreFocusOnClose = useRef(false);
   const maximum = Math.max(player.duration || currentTrack?.duration || 0, 1);
   const position = Math.min(player.progress, maximum);
+  const activeVisualizerIndex = ACTIVE_VISUALIZER_MODES.indexOf(visualizerMode);
+  const nextVisualizerMode = visualizerMode === "off"
+    ? "spectrum"
+    : ACTIVE_VISUALIZER_MODES[(activeVisualizerIndex + 1) % ACTIVE_VISUALIZER_MODES.length]!;
+  const visualizerSignal = getVisualizerSignal(
+    visualizerMode,
+    player.visualizer.status,
+    player.visualizer.supported,
+    player.isPlaying,
+  );
 
   function closeExpanded(restoreFocus: boolean): void {
     restoreFocusOnClose.current = restoreFocus;
@@ -93,6 +122,9 @@ export function PlayerDock({
 
   const title = currentTrack?.title ?? "Nothing playing";
   const artist = currentTrack?.displayArtist || currentTrack?.artist || "Choose a track to begin";
+  const sheetPortalTarget = typeof document === "undefined"
+    ? null
+    : dockRef.current?.closest(".app") ?? document.body;
 
   function openQueueFromSheet(): void {
     closeExpanded(true);
@@ -106,27 +138,48 @@ export function PlayerDock({
 
   return (
     <section
+      ref={dockRef}
       className="player-dock mini-player"
       data-playing={player.isPlaying}
       data-has-track={Boolean(currentTrack)}
+      data-visualizer-mode={visualizerMode}
+      data-visualizer-status={player.visualizer.status}
       aria-labelledby="now-playing-heading"
     >
+      {visualizer ? (
+        <div className="player-dock__visualizer-stage" aria-hidden="true">
+          {visualizer}
+        </div>
+      ) : null}
       <header className="player-dock__heading">
         <div>
           <p className="eyebrow">Now playing</p>
           <h2 id="now-playing-heading">Playback signal</h2>
         </div>
-        <button
-          className="icon-button"
-          type="button"
-          aria-expanded={queueOpen}
-          aria-controls={queuePanelId}
-          aria-label={`${queueOpen ? "Close" : "Open"} playback queue`}
-          title={`${queueOpen ? "Close" : "Open"} playback queue`}
-          onClick={onToggleQueue}
-        >
-          <AppIcon name="queue" />
-        </button>
+        <div className="player-dock__heading-actions">
+          <button
+            className="player-dock__visualizer-toggle"
+            type="button"
+            aria-label={`${visualizerSignal}. Switch to ${VISUALIZER_MODE_LABELS[nextVisualizerMode]} visualizer`}
+            title={`${visualizerSignal}. Switch to ${VISUALIZER_MODE_LABELS[nextVisualizerMode]}`}
+            disabled={!player.visualizer.supported || !onSetVisualizerMode}
+            onClick={() => onSetVisualizerMode?.(nextVisualizerMode)}
+          >
+            <AppIcon name="visualizer" />
+            <span>{visualizerSignal}</span>
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            aria-expanded={queueOpen}
+            aria-controls={queuePanelId}
+            aria-label={`${queueOpen ? "Close" : "Open"} playback queue`}
+            title={`${queueOpen ? "Close" : "Open"} playback queue`}
+            onClick={onToggleQueue}
+          >
+            <AppIcon name="queue" />
+          </button>
+        </div>
       </header>
 
       <div className="player-dock__track">
@@ -255,7 +308,7 @@ export function PlayerDock({
         </div>
       ) : null}
 
-      {expanded ? (
+      {expanded && sheetPortalTarget ? createPortal((
         <div
           ref={sheetRef}
           className="player-sheet"
@@ -303,6 +356,27 @@ export function PlayerDock({
           >
             <AppIcon name="favorite" filled={isStarred} />
           </button>
+          {onSetVisualizerMode ? (
+            <fieldset className="player-sheet__visualizer">
+              <legend>Live visualizer</legend>
+              <p role="status">{visualizerSignal}</p>
+              <div>
+                {VISUALIZER_MODES.map((mode) => (
+                  <label key={mode}>
+                    <input
+                      type="radio"
+                      name={visualizerName}
+                      value={mode}
+                      checked={visualizerMode === mode}
+                      disabled={!player.visualizer.supported && mode !== "off"}
+                      onChange={() => onSetVisualizerMode(mode)}
+                    />
+                    <span>{VISUALIZER_MODE_LABELS[mode]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          ) : null}
           <div className="player-sheet__controls" aria-label="Expanded playback controls">
             <button
               className="icon-button"
@@ -343,7 +417,7 @@ export function PlayerDock({
             {queueOpen ? "Close queue" : "Open queue"}
           </button>
         </div>
-      ) : null}
+      ), sheetPortalTarget) : null}
 
       <audio
         ref={player.audioRef}
@@ -356,4 +430,17 @@ export function PlayerDock({
       />
     </section>
   );
+}
+
+function getVisualizerSignal(
+  mode: VisualizerMode,
+  status: AudioPlayerController["visualizer"]["status"],
+  supported: boolean,
+  playing: boolean,
+): string {
+  const label = VISUALIZER_MODE_LABELS[mode].toUpperCase();
+  if (mode === "off") return "VIZ · OFF";
+  if (!supported || status === "unavailable") return "VIZ · UNAVAILABLE";
+  if (status === "waiting") return `ARMED · ${label}`;
+  return `${playing ? "LIVE" : "READY"} · ${label}`;
 }

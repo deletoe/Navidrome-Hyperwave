@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  AudioLines,
   CirclePlay,
   House,
   ListMusic,
@@ -56,6 +57,7 @@ const ICONS = {
   studio: Palette,
   trash: Trash2,
   artists: UsersRound,
+  visualizer: AudioLines,
   volume: Volume2,
 } satisfies Record<string, LucideIcon>;
 

@@ -75,6 +75,7 @@ describe("AudioVisualizer", () => {
 
     act(() => runNextAnimationFrame(16.7));
     expect(readFrame).toHaveBeenCalledOnce();
+    expect(canvas).toHaveAttribute("data-frame-state", "live");
     expect(animationCallbacks.size).toBe(1);
     expect(requestAnimationFrameMock).toHaveBeenCalledTimes(2);
 
@@ -109,6 +110,7 @@ describe("AudioVisualizer", () => {
     );
 
     expect(canvas).toHaveAttribute("data-active", "false");
+    expect(canvas).toHaveAttribute("data-frame-state", "idle");
     expect(animationCallbacks.size).toBe(0);
     expect(cancelAnimationFrameMock).toHaveBeenCalledTimes(cancellationCount + 1);
   });

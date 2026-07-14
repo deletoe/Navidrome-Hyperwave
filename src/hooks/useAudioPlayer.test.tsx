@@ -40,11 +40,13 @@ function Harness({
   currentTrack,
   activeClient = client,
   visualizerEnabled = false,
+  repeatMode = "off",
   onController,
 }: {
   currentTrack?: Track;
   activeClient?: SubsonicClient;
   visualizerEnabled?: boolean;
+  repeatMode?: QueueState["repeatMode"];
   onController?: (controller: AudioPlayerController) => void;
 }) {
   const [, dispatch] = useReducer(queueReducer, createInitialQueueState());
@@ -52,7 +54,7 @@ function Harness({
     ? ({
         tracks: [currentTrack],
         currentIndex: 0,
-        repeatMode: "off",
+        repeatMode,
         shuffle: false,
       } satisfies QueueState)
     : createInitialQueueState();
@@ -129,6 +131,36 @@ describe("useAudioPlayer", () => {
     });
 
     expect(play).toHaveBeenCalled();
+  });
+
+  it("rolls back playback state when repeat-one is rejected", async () => {
+    const repeatError = new Error("Repeat was blocked");
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, "play")
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(repeatError);
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={song}
+        repeatMode="one"
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+
+    await act(async () => {
+      view.getByRole("button", { name: "play" }).click();
+    });
+    expect(player.isPlaying).toBe(true);
+
+    act(() => player.handleEnded());
+
+    await waitFor(() => expect(player.error).toBe(repeatError.message));
+    expect(player.isPlaying).toBe(false);
+    expect(player.progress).toBe(0);
+    expect(play).toHaveBeenCalledTimes(2);
   });
 
   it("rebuilds the stream URL when the client session changes", () => {
@@ -227,6 +259,17 @@ describe("useAudioPlayer", () => {
     expect(frame?.waveform).toHaveLength(256);
     expect(webAudio.analyser.getByteFrequencyData).toHaveBeenCalledOnce();
     expect(webAudio.analyser.getByteTimeDomainData).toHaveBeenCalledOnce();
+
+    act(() => {
+      context.state = "suspended";
+      (context as unknown as AudioContext).onstatechange?.(new Event("statechange"));
+    });
+    expect(player.visualizer.status).toBe("waiting");
+    act(() => {
+      context.state = "running";
+      (context as unknown as AudioContext).onstatechange?.(new Event("statechange"));
+    });
+    expect(player.visualizer.status).toBe("ready");
 
     view.rerender(
       <Harness
@@ -342,6 +385,89 @@ describe("useAudioPlayer", () => {
     await waitFor(() => expect(player.visualizer.status).toBe("ready"));
   });
 
+  it("retries visualizer activation after a stalled AudioContext resume", async () => {
+    vi.useFakeTimers();
+    try {
+      const stalledResume = new Promise<void>(() => undefined);
+      const webAudio = installAudioContext({
+        resumePromises: [stalledResume, Promise.resolve()],
+      });
+      let player!: AudioPlayerController;
+      render(
+        <Harness
+          currentTrack={song}
+          visualizerEnabled
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+
+      const firstActivation = player.visualizer.activate();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(650);
+        await firstActivation;
+      });
+
+      expect(player.visualizer.status).toBe("waiting");
+      expect(webAudio.instances).toHaveLength(1);
+      expect(webAudio.instances[0]!.close).toHaveBeenCalledOnce();
+
+      await act(async () => {
+        await player.visualizer.activate();
+      });
+
+      expect(webAudio.instances).toHaveLength(2);
+      expect(player.visualizer.status).toBe("ready");
+      expect(webAudio.instances[1]!.createMediaElementSource).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ignores a stale play rejection after a newer track starts", async () => {
+    let rejectFirstPlay!: (reason?: unknown) => void;
+    const firstPlay = new Promise<void>((_resolve, reject) => {
+      rejectFirstPlay = reject;
+    });
+    const play = vi.spyOn(HTMLMediaElement.prototype, "play")
+      .mockReturnValueOnce(firstPlay)
+      .mockResolvedValue(undefined);
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={song}
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+
+    const staleAttempt = player.play();
+    const secondSong = { ...song, id: "song-2", title: "Signal Two" };
+    view.rerender(
+      <Harness
+        currentTrack={secondSong}
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await act(async () => {
+      await player.play();
+    });
+    expect(player.isPlaying).toBe(true);
+
+    await act(async () => {
+      rejectFirstPlay(new DOMException("The play request was interrupted", "AbortError"));
+      await staleAttempt;
+    });
+
+    expect(play).toHaveBeenCalledTimes(2);
+    expect(player.isPlaying).toBe(true);
+    expect(player.error).toBeUndefined();
+  });
+
   it("removes Media Session handlers when the track is cleared", () => {
     const actionHandler = vi.fn();
     const original = Object.getOwnPropertyDescriptor(navigator, "mediaSession");
@@ -374,7 +500,11 @@ describe("useAudioPlayer", () => {
 });
 
 function installAudioContext(
-  options: { constructorError?: Error; resumePromise?: Promise<void> } = {},
+  options: {
+    constructorError?: Error;
+    resumePromise?: Promise<void>;
+    resumePromises?: Promise<void>[];
+  } = {},
 ) {
   const source = {
     connect: vi.fn(),
@@ -394,7 +524,7 @@ function installAudioContext(
     state: AudioContextState = "suspended";
     destination = {} as AudioDestinationNode;
     resume = vi.fn(async () => {
-      await options.resumePromise;
+      await (options.resumePromises?.[instances.indexOf(this)] ?? options.resumePromise);
       this.state = "running";
     });
     close = vi.fn(async () => {

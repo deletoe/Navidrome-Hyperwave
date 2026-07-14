@@ -98,10 +98,12 @@ export function AudioVisualizer({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
+    const drawingCanvas = canvas;
     const drawingContext = context;
 
     if (!active) {
       clearCanvas(canvas, context);
+      canvas.dataset.frameState = "idle";
       renderStateRef.current.particles.length = 0;
       renderStateRef.current.lastTime = 0;
       return;
@@ -115,6 +117,9 @@ export function AudioVisualizer({
       const latest = latestRef.current;
       const frame = latest.readFrame?.();
       if (frame) {
+        if (drawingCanvas.dataset.frameState !== "live") {
+          drawingCanvas.dataset.frameState = "live";
+        }
         const dimensions = dimensionsRef.current;
         renderVisualizerFrame({
           context: drawingContext,
@@ -129,6 +134,9 @@ export function AudioVisualizer({
           secondary: latest.secondary,
           mode: latest.mode,
         });
+      } else if (drawingCanvas.dataset.frameState !== "waiting") {
+        clearCanvas(drawingCanvas, drawingContext);
+        drawingCanvas.dataset.frameState = "waiting";
       }
       animationFrame = window.requestAnimationFrame(paint);
     }

@@ -7,6 +7,7 @@ import {
   type VisualPreferences,
   type VisualizerMode,
 } from "../lib/visualPreferences";
+import { VISUALIZER_STRATEGIES } from "../lib/visualizerRenderer";
 import type { CoverPalette, ThemeId, VisualTheme } from "../types";
 import { AppIcon } from "./AppIcon";
 import { Artwork } from "./Artwork";
@@ -233,6 +234,46 @@ export function ThemeStudio({
 
         <div className="theme-studio__control-grid">
           <fieldset className="theme-studio__control-card">
+            <legend>Live audio visualizer</legend>
+            <div className="theme-studio__visualizer-strategy">
+              <AppIcon name="visualizer" />
+              <span>
+                <strong>{THEME_NAMES[theme.id]}</strong>
+                <span>{humanize(VISUALIZER_STRATEGIES[theme.id])} stage</span>
+              </span>
+            </div>
+            <p
+              className="theme-studio__visualizer-status"
+              data-status={visualizerStatus}
+              role="status"
+            >
+              {visualizerStatusText(
+                visualizerStatus,
+                visualizerSupported,
+                visualizerError,
+              )}
+            </p>
+            <div className="theme-studio__choice-grid">
+              {VISUALIZER_OPTIONS.map((option) => (
+                <label className="theme-studio__choice" key={option.value}>
+                  <input
+                    type="radio"
+                    name={visualizerName}
+                    value={option.value}
+                    checked={preferences.visualizer === option.value}
+                    disabled={!visualizerSupported && option.value !== "off"}
+                    onChange={() => setVisualizerMode(option.value)}
+                  />
+                  <span>
+                    <strong>{option.label}</strong>
+                    <span>{option.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="theme-studio__control-card">
             <legend>Album palette</legend>
             <label className="theme-studio__toggle" htmlFor={paletteToggleId}>
               <input
@@ -269,38 +310,6 @@ export function ThemeStudio({
             </div>
           </fieldset>
 
-          <fieldset className="theme-studio__control-card">
-            <legend>Live audio visualizer</legend>
-            <p
-              className="theme-studio__visualizer-status"
-              data-status={visualizerStatus}
-              role="status"
-            >
-              {visualizerStatusText(
-                visualizerStatus,
-                visualizerSupported,
-                visualizerError,
-              )}
-            </p>
-            <div className="theme-studio__choice-grid">
-              {VISUALIZER_OPTIONS.map((option) => (
-                <label className="theme-studio__choice" key={option.value}>
-                  <input
-                    type="radio"
-                    name={visualizerName}
-                    value={option.value}
-                    checked={preferences.visualizer === option.value}
-                    disabled={!visualizerSupported && option.value !== "off"}
-                    onChange={() => setVisualizerMode(option.value)}
-                  />
-                  <span>
-                    <strong>{option.label}</strong>
-                    <span>{option.description}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
         </div>
       </section>
 

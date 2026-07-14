@@ -1116,7 +1116,7 @@
   transform: rotate(6deg);
 }
 
-/* The live Canvas shares one DOM node while each personality changes its optical treatment. */
+/* The ambient and player Canvases share one strategy while each personality changes its stage. */
 [data-theme="prism"] .audio-visualizer {
   mix-blend-mode: screen;
   filter: blur(0.2px) saturate(138%) contrast(108%);
@@ -1151,6 +1151,35 @@
 [data-theme="lounge"] .audio-visualizer {
   mix-blend-mode: plus-lighter;
   filter: sepia(22%) saturate(106%) blur(0.25px);
+}
+
+[data-theme="prism"] .player-dock__visualizer-stage {
+  clip-path: polygon(12% 0, 100% 0, 100% 100%, 2% 100%);
+}
+
+[data-theme="cyber"] .player-dock__visualizer-stage {
+  clip-path: polygon(0 24%, 100% 8%, 100% 100%, 0 100%);
+}
+
+[data-theme="bloom"] .player-dock__visualizer-stage {
+  clip-path: ellipse(84% 78% at 68% 50%);
+}
+
+[data-theme="pixel"] .player-dock__visualizer-stage {
+  clip-path: polygon(0 34%, 100% 18%, 100% 100%, 0 100%);
+  image-rendering: pixelated;
+}
+
+[data-theme="rock"] .player-dock__visualizer-canvas {
+  transform: rotate(-1.15deg) scale(1.08);
+}
+
+[data-theme="cinematic"] .player-dock__visualizer-stage {
+  clip-path: inset(10% 0 12% 0);
+}
+
+[data-theme="lounge"] .player-dock__visualizer-stage {
+  clip-path: ellipse(78% 94% at 76% 50%);
 }
 
 /* Theme Studio keeps one semantic structure, then adopts seven different art directions. */
@@ -1541,8 +1570,12 @@
   }
 
   [data-theme="bloom"] .player-dock__heading,
-  [data-theme="cinematic"] .player-dock__heading {
+  [data-theme="cinematic"] .player-dock__heading,
+  [data-theme="rock"] .player-dock__heading {
     grid-area: heading;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
   }
 
   [data-theme="bloom"] .player-dock__track,

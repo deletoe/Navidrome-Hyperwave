@@ -483,6 +483,8 @@ export default function App() {
       data-view={view}
       data-playing={player.isPlaying}
       data-has-track={Boolean(currentTrack)}
+      data-visualizer-mode={visualPreferences.preferences.visualizer}
+      data-visualizer-status={player.visualizer.status}
       style={themeStyle}
     >
       <ThemeBurst
@@ -491,11 +493,12 @@ export default function App() {
         active={Boolean(currentTrack)}
         sequence={themeSequence}
       />
-      <div className="ambient-layer" aria-hidden="true">
+      <div className="ambient-layer" aria-hidden="true" />
+      <div className="visualizer-layer" aria-hidden="true">
         <AudioVisualizer
           className="ambient-visualizer"
           readFrame={player.visualizer.readFrame}
-          enabled={visualizerEnabled && player.visualizer.status !== "unavailable"}
+          enabled={visualizerEnabled && player.visualizer.status === "ready"}
           playing={player.isPlaying}
           themeId={theme.id}
           intensity={visualPreferences.preferences.intensity / 50}
@@ -528,6 +531,21 @@ export default function App() {
             onToggleStar={currentTrack ? () => toggleStar(currentTrack) : undefined}
             onOpenArtist={openArtist}
             onToggleQueue={() => setQueueOpen((value) => !value)}
+            visualizerMode={visualPreferences.preferences.visualizer}
+            onSetVisualizerMode={setVisualizerMode}
+            visualizer={(
+              <AudioVisualizer
+                className="player-dock__visualizer-canvas"
+                readFrame={player.visualizer.readFrame}
+                enabled={visualizerEnabled && player.visualizer.status === "ready"}
+                playing={player.isPlaying}
+                themeId={theme.id}
+                intensity={visualPreferences.preferences.intensity / 50}
+                primary={themeStyle["--theme-primary"]}
+                secondary={themeStyle["--theme-secondary"]}
+                mode={visualPreferences.preferences.visualizer}
+              />
+            )}
           />
           <QueuePanel
             queuePanelId={queuePanelId}

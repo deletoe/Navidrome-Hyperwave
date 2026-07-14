@@ -457,6 +457,43 @@ describe("compact player interactions", () => {
     expect(onToggleStar).toHaveBeenCalledTimes(2);
   });
 
+  it("exposes a live visualizer signal and direct expanded mode controls", async () => {
+    const user = userEvent.setup();
+    const onSetVisualizerMode = vi.fn();
+    const playing = playerController();
+    playing.isPlaying = true;
+    playing.visualizer.status = "ready";
+
+    render(
+      <PlayerDock
+        currentTrack={track}
+        player={playing}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        visualizer={<canvas data-testid="dock-visualizer" />}
+        visualizerMode="hybrid"
+        onSetVisualizerMode={onSetVisualizerMode}
+        onToggleQueue={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("dock-visualizer").parentElement).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    await user.click(screen.getByRole("button", {
+      name: "LIVE · HYBRID. Switch to Spectrum visualizer",
+    }));
+    expect(onSetVisualizerMode).toHaveBeenCalledWith("spectrum");
+
+    await user.click(screen.getByRole("button", { name: "Open now playing" }));
+    const dialog = screen.getByRole("dialog", { name: "Now playing" });
+    expect(within(dialog).getByRole("status")).toHaveTextContent("LIVE · HYBRID");
+    await user.click(within(dialog).getByRole("radio", { name: "Particles" }));
+    expect(onSetVisualizerMode).toHaveBeenLastCalledWith("particles");
+  });
+
   it("opens the current artist from full now playing and closes the sheet", async () => {
     const user = userEvent.setup();
     const onOpenArtist = vi.fn();
@@ -484,15 +521,17 @@ describe("compact player interactions", () => {
     const user = userEvent.setup();
     const player = playerController();
 
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={player}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        onToggleQueue={vi.fn()}
-      />,
+    const view = render(
+      <div className="app">
+        <PlayerDock
+          currentTrack={track}
+          player={player}
+          coverUrl={() => ""}
+          queuePanelId="playback-queue"
+          queueOpen={false}
+          onToggleQueue={vi.fn()}
+        />
+      </div>,
     );
 
     const expand = screen.getByRole("button", { name: "Open now playing" });
@@ -504,7 +543,9 @@ describe("compact player interactions", () => {
 
     await user.click(expand);
     expect(expand).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("dialog", { name: "Now playing" })).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Now playing" });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.parentElement).toBe(view.container.firstElementChild);
     expect(screen.getByRole("button", { name: "Close now playing" })).toBeEnabled();
 
     await user.keyboard("{Escape}");
@@ -897,6 +938,15 @@ describe("state coordination regressions", () => {
     render(<App />);
     const app = document.querySelector<HTMLElement>(".app")!;
     const visualizer = document.querySelector<HTMLCanvasElement>(".audio-visualizer")!;
+    const dockVisualizer = document.querySelector<HTMLCanvasElement>(
+      ".player-dock__visualizer-canvas",
+    )!;
+
+    expect(document.querySelectorAll(".audio-visualizer")).toHaveLength(2);
+    expect(app).toHaveAttribute("data-visualizer-mode", "hybrid");
+    expect(app).toHaveAttribute("data-visualizer-status", "waiting");
+    expect(visualizer).toHaveAttribute("data-active", "false");
+    expect(dockVisualizer).toHaveAttribute("data-active", "false");
 
     await user.click(screen.getByRole("button", { name: "Favorites" }));
     await user.click(
@@ -915,6 +965,7 @@ describe("state coordination regressions", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Theme for Electronic" }), "rock");
     expect(app).toHaveAttribute("data-theme", "rock");
     expect(document.querySelector(".audio-visualizer")).toBe(visualizer);
+    expect(document.querySelector(".player-dock__visualizer-canvas")).toBe(dockVisualizer);
 
     fireEvent.change(screen.getByRole("slider", { name: "Theme intensity" }), {
       target: { value: "37" },
@@ -923,6 +974,9 @@ describe("state coordination regressions", () => {
 
     await user.click(screen.getByRole("radio", { name: /^Particles/ }));
     expect(player.visualizer.activate).toHaveBeenCalledTimes(2);
+    expect(app).toHaveAttribute("data-visualizer-mode", "particles");
+    expect(visualizer).toHaveAttribute("data-mode", "particles");
+    expect(dockVisualizer).toHaveAttribute("data-mode", "particles");
 
     await user.click(screen.getByRole("radio", { name: /Soft Bloom/ }));
     expect(app).toHaveAttribute("data-theme", "bloom");

@@ -69,6 +69,8 @@ interface AudioGraph {
   waveform?: Uint8Array<ArrayBuffer>;
 }
 
+const VISUALIZER_RESUME_TIMEOUT_MS = 600;
+
 export function getScrobbleThreshold(duration: number): number {
   if (!Number.isFinite(duration) || duration <= 0) return 0;
   return Math.min(duration * 0.5, 240);
@@ -92,6 +94,7 @@ export function useAudioPlayer({
     audio: HTMLAudioElement;
     promise: Promise<void>;
   } | undefined>(undefined);
+  const playbackAttempt = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -114,7 +117,11 @@ export function useAudioPlayer({
       setVisualizerStatus("unavailable");
       return;
     }
-    setVisualizerStatus(audioGraph.current?.analyser ? "ready" : "waiting");
+    setVisualizerStatus(
+      audioGraph.current?.analyser && String(audioGraph.current.context.state) === "running"
+        ? "ready"
+        : "waiting",
+    );
   }, [visualizerEnabled]);
 
   const mediaUrls = useMemo(
@@ -128,6 +135,7 @@ export function useAudioPlayer({
   );
 
   const reset = useCallback(() => {
+    playbackAttempt.current += 1;
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -163,6 +171,7 @@ export function useAudioPlayer({
     const loadKey = currentOccurrenceKey ?? currentTrack.id;
     if (loadedOccurrenceKey.current === loadKey && loadedClient.current === client) return;
 
+    playbackAttempt.current += 1;
     audio.src = mediaUrls.stream(currentTrack.id);
     audio.load();
     loadedOccurrenceKey.current = loadKey;
@@ -174,10 +183,16 @@ export function useAudioPlayer({
     setError(undefined);
 
     if (playingRef.current) {
+      const attempt = ++playbackAttempt.current;
       void audio
         .play()
-        .then(() => submitStartScrobble(client, currentTrack))
+        .then(() => {
+          if (!isCurrentPlaybackAttempt(attempt, audio, loadKey, client)) return;
+          setIsPlaying(true);
+          submitStartScrobble(client, currentTrack);
+        })
         .catch((playError: unknown) => {
+          if (!isCurrentPlaybackAttempt(attempt, audio, loadKey, client)) return;
           playingRef.current = false;
           setIsPlaying(false);
           setError(playError instanceof Error ? playError.message : "Playback could not continue");
@@ -228,6 +243,8 @@ export function useAudioPlayer({
   async function play(): Promise<void> {
     const audio = audioRef.current;
     if (!audio || !client || !currentTrack) return;
+    const loadKey = loadedOccurrenceKey.current ?? currentOccurrenceKey ?? currentTrack.id;
+    const attempt = ++playbackAttempt.current;
     setError(undefined);
     try {
       if (visualizerEnabled) {
@@ -238,10 +255,12 @@ export function useAudioPlayer({
         void audioGraph.current.context.resume().catch(() => undefined);
       }
       await audio.play();
+      if (!isCurrentPlaybackAttempt(attempt, audio, loadKey, client)) return;
       playingRef.current = true;
       setIsPlaying(true);
       submitStartScrobble(client, currentTrack);
     } catch (playError) {
+      if (!isCurrentPlaybackAttempt(attempt, audio, loadKey, client)) return;
       playingRef.current = false;
       setIsPlaying(false);
       setError(playError instanceof Error ? playError.message : "Playback was blocked by the browser");
@@ -255,6 +274,7 @@ export function useAudioPlayer({
   }
 
   function pause(): void {
+    playbackAttempt.current += 1;
     audioRef.current?.pause();
     playingRef.current = false;
     setIsPlaying(false);
@@ -325,17 +345,23 @@ export function useAudioPlayer({
     const audio = audioRef.current;
     if (queueState.repeatMode === "one" && audio) {
       audio.currentTime = 0;
+      setProgress(0);
       startedForLoad.current = false;
       submittedForLoad.current = false;
-      if (client && currentTrack) {
-        void audio.play().then(() => submitStartScrobble(client, currentTrack));
-      } else {
-        void audio.play();
+      if (!client || !currentTrack) {
+        playbackAttempt.current += 1;
+        playingRef.current = false;
+        setIsPlaying(false);
+        return;
       }
+      // Reuse the guarded playback path so a rejected repeat or a late promise
+      // from the previous occurrence cannot leave the player looking active.
+      void play();
       return;
     }
     const atEnd = queueState.currentIndex >= queueState.tracks.length - 1;
     if (atEnd && queueState.repeatMode === "off") {
+      playbackAttempt.current += 1;
       playingRef.current = false;
       setIsPlaying(false);
       return;
@@ -351,6 +377,7 @@ export function useAudioPlayer({
       3: "The browser could not decode this track",
       4: "This audio source is not supported or authentication expired",
     };
+    playbackAttempt.current += 1;
     playingRef.current = false;
     setIsPlaying(false);
     setError(messages[mediaError?.code ?? 0] ?? "The track could not be played");
@@ -369,18 +396,21 @@ export function useAudioPlayer({
     }
     const existing = audioGraph.current;
     if (existing?.audio === audio) {
-      try {
-        if (existing.context.state === "suspended") await existing.context.resume();
-        if (existing.analyser) {
-          setVisualizerStatus("ready");
-          setVisualizerError(undefined);
-        } else {
-          setVisualizerStatus("unavailable");
-          setVisualizerError("The audio stream could not be connected to Web Audio");
-        }
-      } catch {
+      if (!existing.analyser) {
         setVisualizerStatus("unavailable");
-        setVisualizerError("The browser blocked the audio visualizer");
+        setVisualizerError("The audio stream could not be connected to Web Audio");
+        return;
+      }
+      const contextState = await resumeAudioContext(existing.context);
+      if (contextState === "running") {
+        setVisualizerStatus("ready");
+        setVisualizerError(undefined);
+      } else if (contextState === "closed") {
+        setVisualizerStatus("unavailable");
+        setVisualizerError("The browser closed the live audio analyser");
+      } else {
+        setVisualizerStatus("waiting");
+        setVisualizerError(undefined);
       }
       return;
     }
@@ -410,7 +440,13 @@ export function useAudioPlayer({
     let source: MediaElementAudioSourceNode | undefined;
     try {
       context = new ContextConstructor();
-      if (context.state === "suspended") await context.resume();
+      const contextState = await resumeAudioContext(context);
+      if (contextState !== "running") {
+        void context.close().catch(() => undefined);
+        setVisualizerStatus("waiting");
+        setVisualizerError(undefined);
+        return;
+      }
       if (audioRef.current !== audio) {
         void context.close().catch(() => undefined);
         return;
@@ -442,7 +478,7 @@ export function useAudioPlayer({
         setVisualizerError("The audio stream could not be connected to Web Audio");
         return;
       }
-      audioGraph.current = {
+      const graph: AudioGraph = {
         audio,
         context,
         source,
@@ -450,8 +486,9 @@ export function useAudioPlayer({
         frequency,
         waveform,
       };
-      setVisualizerStatus("ready");
-      setVisualizerError(undefined);
+      audioGraph.current = graph;
+      context.onstatechange = () => publishAudioGraphStatus(graph);
+      publishAudioGraphStatus(graph);
     } catch {
       // Closing is safe only before createMediaElementSource has rerouted the
       // element. A claimed source must stay connected to a running destination.
@@ -473,6 +510,36 @@ export function useAudioPlayer({
     graph.analyser.getByteFrequencyData(graph.frequency);
     graph.analyser.getByteTimeDomainData(graph.waveform);
     return { frequency: graph.frequency, waveform: graph.waveform };
+  }
+
+  function publishAudioGraphStatus(graph: AudioGraph): void {
+    if (audioGraph.current !== graph) return;
+    const contextState = String(graph.context.state);
+    if (!graph.analyser) {
+      setVisualizerStatus("unavailable");
+      setVisualizerError("The audio stream could not be connected to Web Audio");
+    } else if (contextState === "running") {
+      setVisualizerStatus("ready");
+      setVisualizerError(undefined);
+    } else if (contextState === "closed") {
+      setVisualizerStatus("unavailable");
+      setVisualizerError("The browser closed the live audio analyser");
+    } else {
+      setVisualizerStatus("waiting");
+      setVisualizerError(undefined);
+    }
+  }
+
+  function isCurrentPlaybackAttempt(
+    attempt: number,
+    audio: HTMLAudioElement,
+    loadKey: number | string,
+    activeClient: SubsonicClient,
+  ): boolean {
+    return playbackAttempt.current === attempt
+      && audioRef.current === audio
+      && loadedOccurrenceKey.current === loadKey
+      && loadedClient.current === activeClient;
   }
 
   return {
@@ -504,6 +571,28 @@ export function useAudioPlayer({
     handleEnded,
     handleError,
   };
+}
+
+async function resumeAudioContext(context: AudioContext): Promise<string> {
+  const initialState = String(context.state);
+  if (initialState === "running" || initialState === "closed") return initialState;
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const outcome = await Promise.race([
+      context.resume().then(
+        () => "settled" as const,
+        () => "rejected" as const,
+      ),
+      new Promise<"timeout">((resolve) => {
+        timeoutId = setTimeout(() => resolve("timeout"), VISUALIZER_RESUME_TIMEOUT_MS);
+      }),
+    ]);
+    if (outcome === "timeout" || outcome === "rejected") return String(context.state);
+    return String(context.state);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
 }
 
 type AudioContextGlobal = typeof globalThis & {

@@ -122,6 +122,7 @@ describe("ThemeStudio", () => {
     expect(setPaletteEnabled).toHaveBeenCalledWith(false);
 
     const visualizer = screen.getByRole("group", { name: "Live audio visualizer" });
+    expect(within(visualizer).getByText("Neon console stage")).toBeInTheDocument();
     expect(within(visualizer).getByRole("radio", { name: /^Spectrum/ })).toBeChecked();
     await user.click(within(visualizer).getByRole("radio", { name: /^Hybrid/ }));
     expect(setVisualizerMode).toHaveBeenCalledWith("hybrid");

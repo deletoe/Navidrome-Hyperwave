@@ -1,6 +1,6 @@
 # My Navidrome 5.6 Verification
 
-Verified locally on 2026-07-13 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
+Verified locally through 2026-07-14 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
 
 ## Final automated gate
 
@@ -12,22 +12,22 @@ npm run test:run && npm run typecheck && npm run build && npm audit --audit-leve
 
 Result:
 
-- Vitest 4.1.10: 22 test files passed, 202 tests passed, 0 failed.
+- Vitest 4.1.10: 22 test files passed, 209 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
-- Vite 6.4.3 production build: exit 0, 1,617 modules transformed.
-- Production bundle: CSS 104.63 kB (18.52 kB gzip), JS 325.86 kB (99.01 kB gzip).
+- Vite 6.4.3 production build: exit 0, 1,618 modules transformed.
+- Production bundle: CSS 110.63 kB (19.38 kB gzip), JS 334.32 kB (101.51 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven Canvas render strategies, bounded particles, one RAF chain, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, and ordinary playback continuing while `AudioContext.resume()` remains pending. Artist coverage includes two-level `getArtists` normalization, lazy directory loading, stable controlled filtering, five-request album expansion, real transport aborts, 15-second timeouts, progressive publication, order preservation, track deduplication, partial failure, forced refresh, stale-response guards, authoritative favorite truth, focus/scroll restoration, accessible artist links, duplicate-navigation prevention, and full-collection playback. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
+The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven materially different Canvas strategies, seven particle systems, 60/120Hz-stable emission, bounded per-frame work, one RAF chain per stable Canvas, two coordinated ambient/player stages, ready-only animation scheduling, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, ordinary playback continuing while `AudioContext.resume()` remains pending, timed-out resume retry, context state synchronization, stale play rejection suppression, repeat-one rejection rollback, and a root-level Now Playing portal that escapes player clipping contexts. Artist coverage includes two-level `getArtists` normalization, lazy directory loading, stable controlled filtering, five-request album expansion, real transport aborts, 15-second timeouts, progressive publication, order preservation, track deduplication, partial failure, forced refresh, stale-response guards, authoritative favorite truth, focus/scroll restoration, accessible artist links, duplicate-navigation prevention, and full-collection playback. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
 
 ## Local server and credential boundary
 
 - Address: `http://127.0.0.1:5173/`
-- Listener: Node PID `36244`, bound only to `127.0.0.1:5173`.
+- Listener: Node PID `112`, bound only to `127.0.0.1:5173`.
 - Vite uses `strictPort: true`; it fails instead of silently selecting another port.
 - The user-authored credential document remains outside the build and is denied by the dev server: `/docs/requirements.md` returns HTTP 403.
 - Theme art is publicly served as intended; `/assets/themes/prism-ambient.webp` returns HTTP 200 with the expected 47,434-byte body.
-- The final in-app browser log read returned no warning or error entries from the application.
+- A fresh in-app browser reload rendered normally at 1280×720 and 390×844. The retained development log buffer still included the expected pre-reload Fast Refresh hook-order warning produced while a new hook was being added; the clean current gate is therefore established by the fresh render, full Vitest run and production build rather than by clearing that historical buffer.
 
 ## Original visual media
 
@@ -87,19 +87,29 @@ The Studio view was exercised in the in-app browser against the authorized real 
 
 The real `Da Funk` cover completed the authenticated Blob fetch and browser-side 48×48 analysis. Studio reported `Current cover colors are active` and displayed exactly three valid swatches: `#3957a2`, `#cf5650`, and `#0e1528`. With the cover response enabled, the mapped Rock personality blended its primary to `#8d5d78`; disabling the switch immediately restored the Rock default `#ff653f`, and re-enabling restored the extracted response. No authenticated cover URL, image bytes, password, token or complete query was printed or persisted by the app.
 
-An explicit `电子音乐 → Riot Stage` mapping overrode the built-in Cyber rule for the live current track and survived navigation. Reset All changed the mapping back to Automatic and the same track immediately resolved to Cyber / console again. Previewing Soft Bloom switched to Bloom / garden and then returned to Automatic without replacing the single Canvas node. Spectrum and Hybrid were both selected through the real UI; `data-mode` followed each choice while `.audio-visualizer` remained a one-node decorative layer.
+An explicit `电子音乐 → Riot Stage` mapping overrode the built-in Cyber rule for the live current track and survived navigation. Reset All changed the mapping back to Automatic and the same track immediately resolved to Cyber / console again. Previewing Soft Bloom switched to Bloom / garden and then returned to Automatic without replacing the ambient Canvas node. Spectrum and Hybrid were both selected through the real UI; the current shell regression now additionally asserts that the ambient Canvas and new player-local Canvas both retain identity while `data-mode` follows every choice.
 
 Responsive measurements from the real Studio surface:
 
 | Viewport | Result |
 | --- | --- |
-| 1280×720 | document width 1280px, five navigation entries, one 1280×720 Canvas, no broken images, smallest navigation dimension 45.8px |
-| 390×844 | document width 390px, 362.8px Studio content, 64px five-entry bottom navigation, one 390×844 Canvas, smallest visible button dimension 44px |
+| 1280×720 | document width 1280px, five navigation entries, one full-viewport ambient Canvas plus one player-local Canvas, no broken images, smallest navigation dimension 45.8px |
+| 390×844 | document width 390px, 362.8px Studio content, 64px five-entry bottom navigation, one ambient Canvas plus one clipped mini-player Canvas, smallest visible button dimension 44px |
 | 320×800 | document width 320px, two-column personality previews, mapping rows degrade to two grid rows, five-entry navigation and 44px minimum visible buttons |
 
-All three viewports had zero horizontal overflow. The Canvas had `pointer-events: none`, remained one instance through palette, mapping, preview and mode changes, and used a 2× bitmap at the desktop device pixel ratio. A final clean full-page reload, reconnect and Studio navigation produced no new browser warning or error logs.
+All three viewports had zero horizontal overflow. Both Canvas stages have `pointer-events: none`; automated shell coverage holds each at one stable instance through mapping, preview and mode changes, and each caps its bitmap at 2× device pixel ratio.
 
 The automation browser still rejects audible `play()` because its synthetic click is not a trusted user interaction. The real audio element nevertheless loaded the authenticated stream to readyState 4 with no media error and `crossorigin="anonymous"`; the previously recorded Range proof remains `206`. The live analyser therefore remained in its honest `waiting` state during automation, and no claim is made that browser automation heard audio or observed live FFT energy. Unit coverage proves that a pending or failed AudioContext cannot delay ordinary `audio.play()`, and an actual human click remains the final audible/analyser check.
+
+## Playback spectrum iteration acceptance
+
+The 2026-07-14 iteration moves the audio response from a faint background-only effect into two coordinated surfaces. The full-screen Canvas is now a sibling of the lower-opacity ambient artwork instead of inheriting its mobile fade, while a second Canvas reads the same analyser inside the stable player dock. The player exposes a 44px AudioLines control whose accessible name and tooltip report `READY`, `ARMED`, `LIVE` or unavailable state; compact wide rails use the icon alone to prevent overflow. Expanded now playing exposes direct Off, Spectrum, Particles and Hybrid radios, with a two-column 44px mobile layout, and is portaled to the themed app root so no player or rail clipping context can crop it. Theme Studio places the live analyser card first and names the current strategy.
+
+Fixture-driven rendering confirms seven distinct operation signatures: rotating Prism kaleidoscope, Cyber perspective meter plus oscilloscope, Bloom twin petal tracks, Pixel staircase plus quantized waveform, Rock triple torn wave, Cinematic letterbox light curtain, and Lounge turntable rings plus dotted waveform. Low FFT bins use squared screen mapping, waveform work is capped at 96 samples, particles at 80, and all seven hybrid frames stay below 1,000 mocked Canvas operations.
+
+The Web Audio activation path now times out an unclaimed suspended context after 600ms, closes it safely, clears the shared pending request and allows the next user gesture to retry. A claimed graph publishes `running`, suspended/interrupted and closed changes through `onstatechange`; both Canvas loops remain stopped until that graph is actually ready. Playback attempts are generation-checked so a late rejection from the previous source cannot flip a newer track back to paused or stop its Canvas, and repeat-one reuses the same guarded path so a rejected restart rolls the UI back cleanly.
+
+No credential submission was performed during this iteration's browser pass. The public connection surface freshly rendered at 1280×720 and 390×844 with document width exactly matching the viewport and a 45.8px submit target; signed-in metadata and stream evidence remain the previously authorized checks above. Audible output and non-zero live FFT energy still require the user's real click and are not claimed from synthetic browser automation.
 
 ## Live Navidrome/API checks
 
