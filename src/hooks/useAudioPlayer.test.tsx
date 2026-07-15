@@ -11,6 +11,8 @@ import {
 import type { Track } from "../types";
 import {
   getScrobbleThreshold,
+  PLAYBACK_FADE_IN_MS,
+  PLAYBACK_FADE_OUT_MS,
   useAudioPlayer,
   type AudioPlayerController,
 } from "./useAudioPlayer";
@@ -131,6 +133,427 @@ describe("useAudioPlayer", () => {
     });
 
     expect(play).toHaveBeenCalled();
+  });
+
+  it("fades playback in without changing the user's volume setting", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+
+      await act(async () => {
+        await player.play();
+      });
+      expect(player.isPlaying).toBe(true);
+      expect(player.volume).toBe(0.86);
+      expect(audio.volume).toBe(0);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS / 2);
+      });
+      expect(audio.volume).toBeGreaterThan(0);
+      expect(audio.volume).toBeLessThan(0.86);
+
+      act(() => player.setVolume(0.4));
+      expect(player.volume).toBe(0.4);
+      expect(audio.volume).toBeGreaterThan(0);
+      expect(audio.volume).toBeLessThan(0.4);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS);
+      });
+      expect(audio.volume).toBeCloseTo(0.4, 5);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("fades out before pausing the native media element", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+
+      act(() => player.pause());
+      expect(player.isPlaying).toBe(false);
+      expect(pause).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_OUT_MS / 2);
+      });
+      expect(audio.volume).toBeGreaterThan(0);
+      expect(audio.volume).toBeLessThan(0.86);
+      expect(pause).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_OUT_MS);
+      });
+      expect(pause).toHaveBeenCalledOnce();
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reverses an in-flight fade-out without a stale pause", async () => {
+    vi.useFakeTimers();
+    try {
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+
+      act(() => player.pause());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_OUT_MS / 2);
+      });
+      const fadedVolume = audio.volume;
+      expect(fadedVolume).toBeGreaterThan(0);
+      expect(fadedVolume).toBeLessThan(0.86);
+
+      await act(async () => {
+        await player.play();
+      });
+      expect(player.isPlaying).toBe(true);
+      expect(audio.volume).toBeCloseTo(fadedVolume, 5);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + PLAYBACK_FADE_OUT_MS);
+      });
+      expect(play).toHaveBeenCalledTimes(2);
+      expect(pause).not.toHaveBeenCalled();
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a cancelled pending play from starting after toggle", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolvePlay!: () => void;
+      const pendingNativePlay = new Promise<void>((resolve) => {
+        resolvePlay = resolve;
+      });
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockReturnValue(pendingNativePlay);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const pendingPlay = player.play();
+
+      await act(async () => {
+        await player.toggle();
+      });
+      expect(player.isPlaying).toBe(false);
+      expect(pause).toHaveBeenCalledOnce();
+
+      await act(async () => {
+        resolvePlay();
+        await pendingPlay;
+      });
+      expect(player.isPlaying).toBe(false);
+      expect(player.error).toBeUndefined();
+      expect(pause).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("finishes a pending fade-out immediately when the page becomes hidden", async () => {
+    vi.useFakeTimers();
+    try {
+      const visibilityState = vi
+        .spyOn(document, "visibilityState", "get")
+        .mockReturnValue("visible");
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+
+      act(() => player.pause());
+      expect(pause).not.toHaveBeenCalled();
+      visibilityState.mockReturnValue("hidden");
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+      expect(pause).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("finishes a fade-in at the target volume when the page becomes hidden", async () => {
+    vi.useFakeTimers();
+    try {
+      const visibilityState = vi
+        .spyOn(document, "visibilityState", "get")
+        .mockReturnValue("visible");
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS / 2);
+      });
+      expect(audio.volume).toBeGreaterThan(0);
+      expect(audio.volume).toBeLessThan(0.86);
+
+      visibilityState.mockReturnValue("hidden");
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      expect(player.isPlaying).toBe(true);
+      expect(pause).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a newer fade-out finish when a reversed play promise resolves late", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveReversedPlay!: () => void;
+      const reversedPlay = new Promise<void>((resolve) => {
+        resolveReversedPlay = resolve;
+      });
+      vi.spyOn(HTMLMediaElement.prototype, "play")
+        .mockResolvedValueOnce(undefined)
+        .mockReturnValueOnce(reversedPlay);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+
+      act(() => player.pause());
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_OUT_MS / 2);
+      });
+      let reversedAttempt!: Promise<void>;
+      act(() => {
+        reversedAttempt = player.play();
+      });
+      act(() => player.pause());
+      const secondFadeVolume = audio.volume;
+      expect(secondFadeVolume).toBeGreaterThan(0);
+      expect(pause).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveReversedPlay();
+        await reversedAttempt;
+      });
+      expect(pause).not.toHaveBeenCalled();
+      expect(audio.volume).toBeCloseTo(secondFadeVolume, 5);
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_OUT_MS + 16);
+      });
+      expect(pause).toHaveBeenCalledOnce();
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("pauses immediately when the player is already silent", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+
+      act(() => player.setVolume(0));
+      act(() => player.pause());
+      expect(pause).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+
+      act(() => player.setVolume(0.5));
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS + 16);
+      });
+      act(() => player.toggleMute());
+      expect((view.getByTestId("audio") as HTMLAudioElement).muted).toBe(true);
+      act(() => player.pause());
+      expect(pause).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels the fade envelope when continuous playback changes tracks", async () => {
+    vi.useFakeTimers();
+    try {
+      const nextClient = navidromeClient();
+      const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          activeClient={nextClient}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      const audio = view.getByTestId("audio") as HTMLAudioElement;
+      await act(async () => {
+        await player.play();
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS / 2);
+      });
+      expect(audio.volume).toBeGreaterThan(0);
+      expect(audio.volume).toBeLessThan(0.86);
+
+      const secondSong = { ...song, id: "song-2", title: "Signal Two" };
+      await act(async () => {
+        view.rerender(
+          <Harness
+            currentTrack={secondSong}
+            activeClient={nextClient}
+            onController={(controller) => {
+              player = controller;
+            }}
+          />,
+        );
+        await Promise.resolve();
+      });
+
+      expect(play).toHaveBeenCalledTimes(2);
+      expect(player.isPlaying).toBe(true);
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      expect(vi.getTimerCount()).toBe(0);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(PLAYBACK_FADE_IN_MS * 2);
+      });
+      expect(audio.volume).toBeCloseTo(0.86, 5);
+      view.unmount();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels playback fade timers when the player unmounts", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+      const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
+      let player!: AudioPlayerController;
+      const view = render(
+        <Harness
+          currentTrack={song}
+          onController={(controller) => {
+            player = controller;
+          }}
+        />,
+      );
+      await act(async () => {
+        await player.play();
+      });
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      view.unmount();
+      expect(vi.getTimerCount()).toBe(0);
+      expect(pause).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("rolls back playback state when repeat-one is rejected", async () => {
