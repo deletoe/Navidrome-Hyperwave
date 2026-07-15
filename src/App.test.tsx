@@ -946,7 +946,13 @@ describe("state coordination regressions", () => {
     expect(app).toHaveAttribute("data-visualizer-mode", "hybrid");
     expect(app).toHaveAttribute("data-visualizer-status", "waiting");
     expect(visualizer).toHaveAttribute("data-active", "false");
+    expect(visualizer).toHaveAttribute("data-max-fps", "30");
+    expect(visualizer).toHaveAttribute("data-max-pixel-count", "1800000");
+    expect(visualizer).toHaveAttribute("data-max-device-pixel-ratio", "1.25");
     expect(dockVisualizer).toHaveAttribute("data-active", "false");
+    expect(dockVisualizer).toHaveAttribute("data-max-fps", "45");
+    expect(dockVisualizer).toHaveAttribute("data-max-pixel-count", "500000");
+    expect(dockVisualizer).toHaveAttribute("data-max-device-pixel-ratio", "1.5");
 
     await user.click(screen.getByRole("button", { name: "Favorites" }));
     await user.click(

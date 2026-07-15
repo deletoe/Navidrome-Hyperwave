@@ -226,6 +226,191 @@ describe("AudioVisualizer", () => {
     expect(animationCallbacks.size).toBe(0);
     expect(cancelAnimationFrameMock).toHaveBeenCalledOnce();
   });
+
+  it("limits redraw work when RAF runs at 120 Hz", () => {
+    const readFrame = vi.fn(() => loudFrame());
+    render(
+      <AudioVisualizer
+        readFrame={readFrame}
+        enabled
+        playing
+        maxFps={30}
+        themeId="prism"
+        intensity={1}
+        primary="#8de7ff"
+        secondary="#b99cff"
+      />,
+    );
+
+    act(() => runNextAnimationFrame(0));
+    act(() => runNextAnimationFrame(8.33));
+    act(() => runNextAnimationFrame(16.67));
+    act(() => runNextAnimationFrame(25));
+    expect(readFrame).toHaveBeenCalledTimes(1);
+    expect(animationCallbacks.size).toBe(1);
+
+    act(() => runNextAnimationFrame(33.34));
+    expect(readFrame).toHaveBeenCalledTimes(2);
+    expect(readFrame).toHaveBeenLastCalledWith(33.34);
+  });
+
+  it("sustains the 45 FPS player budget without exceeding it", () => {
+    const readFrame = vi.fn(() => loudFrame());
+    render(
+      <AudioVisualizer
+        readFrame={readFrame}
+        enabled
+        playing
+        maxFps={45}
+        themeId="cyber"
+        intensity={1}
+        primary="#6ef5ff"
+        secondary="#ff4fd8"
+      />,
+    );
+
+    for (let frame = 0; frame <= 120; frame += 1) {
+      act(() => runNextAnimationFrame(frame * (1_000 / 120)));
+    }
+
+    // The inclusive 0–1000ms window contains the initial frame plus 45 slots.
+    expect(readFrame).toHaveBeenCalledTimes(46);
+  });
+
+  it("resets its deadline after a main-thread stall instead of catching up", () => {
+    const readFrame = vi.fn(() => loudFrame());
+    render(
+      <AudioVisualizer
+        readFrame={readFrame}
+        enabled
+        playing
+        maxFps={30}
+        themeId="rock"
+        intensity={1}
+        primary="#ff653f"
+        secondary="#f4d35e"
+      />,
+    );
+
+    act(() => runNextAnimationFrame(0));
+    act(() => runNextAnimationFrame(90));
+    act(() => runNextAnimationFrame(98.33));
+    act(() => runNextAnimationFrame(106.67));
+    act(() => runNextAnimationFrame(115));
+    expect(readFrame).toHaveBeenCalledTimes(2);
+
+    act(() => runNextAnimationFrame(123.34));
+    expect(readFrame).toHaveBeenCalledTimes(3);
+  });
+
+  it("reduces backing resolution to stay within the pixel budget", () => {
+    const originalDevicePixelRatio = Object.getOwnPropertyDescriptor(window, "devicePixelRatio");
+    Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
+    vi.mocked(HTMLCanvasElement.prototype.getBoundingClientRect).mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 2_000,
+      bottom: 1_000,
+      left: 0,
+      width: 2_000,
+      height: 1_000,
+      toJSON: () => ({}),
+    });
+
+    const view = render(
+      <AudioVisualizer
+        readFrame={() => loudFrame()}
+        enabled
+        playing
+        maxPixelCount={1_000_000}
+        maxDevicePixelRatio={2}
+        themeId="cinematic"
+        intensity={1}
+        primary="#ffc66d"
+        secondary="#7ca9ff"
+      />,
+    );
+    const canvas = view.container.querySelector("canvas")!;
+
+    expect(canvas.width * canvas.height).toBeLessThanOrEqual(1_000_000);
+    expect(canvas.width).toBe(1_414);
+    expect(canvas.height).toBe(707);
+    expect(context.setTransform).toHaveBeenCalledWith(0.707, 0, 0, 0.707, 0, 0);
+
+    if (originalDevicePixelRatio) {
+      Object.defineProperty(window, "devicePixelRatio", originalDevicePixelRatio);
+    } else {
+      Reflect.deleteProperty(window, "devicePixelRatio");
+    }
+  });
+
+  it("keeps the pixel budget hard for extremely large canvases", () => {
+    vi.mocked(HTMLCanvasElement.prototype.getBoundingClientRect).mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 200_000,
+      bottom: 100_000,
+      left: 0,
+      width: 200_000,
+      height: 100_000,
+      toJSON: () => ({}),
+    });
+
+    const view = render(
+      <AudioVisualizer
+        readFrame={() => loudFrame()}
+        enabled
+        playing
+        maxPixelCount={1_000_000}
+        maxDevicePixelRatio={2}
+        themeId="prism"
+        intensity={1}
+        primary="#8de7ff"
+        secondary="#b99cff"
+      />,
+    );
+    const canvas = view.container.querySelector("canvas")!;
+
+    expect(canvas.width * canvas.height).toBeLessThanOrEqual(1_000_000);
+    expect(canvas).toHaveAttribute("data-pixel-count", String(canvas.width * canvas.height));
+  });
+
+  it("stops scheduling while hidden and resumes with a fresh frame", () => {
+    const visibilityState = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("visible");
+    const readFrame = vi.fn(() => loudFrame());
+    render(
+      <AudioVisualizer
+        readFrame={readFrame}
+        enabled
+        playing
+        themeId="bloom"
+        intensity={1}
+        primary="#ff96c8"
+        secondary="#8ad8ff"
+      />,
+    );
+
+    act(() => runNextAnimationFrame(16.7));
+    expect(readFrame).toHaveBeenCalledOnce();
+    expect(animationCallbacks.size).toBe(1);
+
+    visibilityState.mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(animationCallbacks.size).toBe(0);
+    expect(cancelAnimationFrameMock).toHaveBeenCalledOnce();
+
+    visibilityState.mockReturnValue("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(animationCallbacks.size).toBe(1);
+
+    act(() => runNextAnimationFrame(5_000));
+    expect(readFrame).toHaveBeenCalledTimes(2);
+    expect(readFrame).toHaveBeenLastCalledWith(5_000);
+  });
 });
 
 function runNextAnimationFrame(time: number): void {

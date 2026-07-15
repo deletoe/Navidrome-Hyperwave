@@ -19,6 +19,12 @@
     background-color var(--control-duration) var(--motion-easing);
 }
 
+/* Live canvases already supply the motion layer. Avoid re-sampling large blurred
+   surfaces behind them on every frame. */
+.app[data-playing="true"][data-visualizer-status="ready"]:not([data-visualizer-mode="off"]) {
+  --surface-filter: none;
+}
+
 .ambient-layer {
   position: fixed;
   z-index: 0;
@@ -42,9 +48,8 @@
   inset: 0;
   contain: strict;
   opacity: 0;
-  mix-blend-mode: screen;
-  filter: saturate(118%) contrast(104%);
-  transform: translateZ(0);
+  mix-blend-mode: normal;
+  filter: none;
   transition: opacity 360ms var(--motion-easing);
 }
 
@@ -1043,8 +1048,10 @@ button[aria-pressed="true"] {
   backdrop-filter: var(--surface-filter);
 }
 
-.player-dock[data-playing="true"]:not([data-visualizer-mode="off"]) {
-  background: color-mix(in srgb, var(--theme-surface-strong) 68%, transparent);
+.player-dock[data-playing="true"][data-visualizer-status="ready"]:not([data-visualizer-mode="off"]) {
+  background: color-mix(in srgb, var(--theme-surface-strong) 92%, var(--theme-bg) 8%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .player-dock__visualizer-stage {
@@ -1063,7 +1070,9 @@ button[aria-pressed="true"] {
   z-index: 0;
   inset: 0;
   opacity: 0;
+  mix-blend-mode: screen;
   filter: saturate(156%) contrast(118%);
+  transform: translateZ(0);
 }
 
 .player-dock__visualizer-canvas.audio-visualizer[data-active="true"] {
@@ -1364,8 +1373,10 @@ button[aria-pressed="true"] {
   cursor: not-allowed;
 }
 
-.app[data-playing="true"]:not([data-visualizer-mode="off"]) .player-sheet {
-  background: color-mix(in srgb, var(--theme-surface-strong) 76%, transparent);
+.app[data-playing="true"][data-visualizer-status="ready"]:not([data-visualizer-mode="off"]) .player-sheet {
+  background: color-mix(in srgb, var(--theme-surface-strong) 94%, var(--theme-bg) 6%);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .player-sheet__controls button {
@@ -2605,6 +2616,12 @@ button[aria-pressed="true"] {
     backdrop-filter: blur(12px) saturate(112%);
   }
 
+  .app[data-playing="true"][data-visualizer-status="ready"]:not([data-visualizer-mode="off"]) .mobile-nav {
+    background: color-mix(in srgb, var(--theme-surface-strong) 97%, var(--theme-bg) 3%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
   .mobile-nav button {
     display: grid;
     grid-template-columns: 1fr;
@@ -2808,8 +2825,10 @@ button[aria-pressed="true"] {
     backdrop-filter: blur(10px) saturate(110%);
   }
 
-  .mini-player[data-playing="true"]:not([data-visualizer-mode="off"]) {
-    background: color-mix(in srgb, var(--theme-surface-strong) 72%, transparent);
+  .mini-player[data-playing="true"][data-visualizer-status="ready"]:not([data-visualizer-mode="off"]) {
+    background: color-mix(in srgb, var(--theme-surface-strong) 92%, var(--theme-bg) 8%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 
   .mini-player .player-dock__visualizer-stage {

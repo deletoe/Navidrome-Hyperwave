@@ -55,11 +55,18 @@
 [data-theme] .artist-grid button,
 [data-theme] .artist-card,
 [data-theme] .track-row,
+[data-theme] .server-status,
+[data-theme] .navigation-rail {
+  transition:
+    border-color var(--control-duration) var(--motion-easing),
+    background-color var(--control-duration) var(--motion-easing);
+}
+
+/* Keep the expressive theme morph on the focal surfaces instead of asking
+   every catalogue card and track row to animate shadows and transforms. */
 [data-theme] .view-hero,
 [data-theme] .entity-hero,
-[data-theme] .server-status,
-[data-theme] .player-dock,
-[data-theme] .navigation-rail {
+[data-theme] .player-dock {
   transition:
     border-radius var(--control-duration) var(--motion-easing),
     border-color var(--control-duration) var(--motion-easing),
@@ -1116,39 +1123,40 @@
   transform: rotate(6deg);
 }
 
-/* The ambient and player Canvases share one strategy while each personality changes its stage. */
-[data-theme="prism"] .audio-visualizer {
+/* The full-screen canvas stays blend/filter free; each personality spends its
+   stronger compositing budget only inside the compact player stage. */
+[data-theme="prism"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: screen;
   filter: blur(0.2px) saturate(138%) contrast(108%);
 }
 
-[data-theme="cyber"] .audio-visualizer {
+[data-theme="cyber"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: screen;
   filter: saturate(168%) contrast(124%);
 }
 
-[data-theme="bloom"] .audio-visualizer {
+[data-theme="bloom"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: plus-lighter;
   filter: blur(0.65px) saturate(118%);
 }
 
-[data-theme="pixel"] .audio-visualizer {
+[data-theme="pixel"] .player-dock__visualizer-canvas.audio-visualizer {
   image-rendering: pixelated;
   mix-blend-mode: screen;
   filter: contrast(148%) saturate(136%);
 }
 
-[data-theme="rock"] .audio-visualizer {
+[data-theme="rock"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: screen;
   filter: contrast(142%) saturate(122%);
 }
 
-[data-theme="cinematic"] .audio-visualizer {
+[data-theme="cinematic"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: screen;
   filter: sepia(18%) saturate(88%) contrast(112%);
 }
 
-[data-theme="lounge"] .audio-visualizer {
+[data-theme="lounge"] .player-dock__visualizer-canvas.audio-visualizer {
   mix-blend-mode: plus-lighter;
   filter: sepia(22%) saturate(106%) blur(0.25px);
 }

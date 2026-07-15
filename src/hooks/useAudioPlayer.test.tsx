@@ -288,6 +288,39 @@ describe("useAudioPlayer", () => {
     expect(webAudio.instances).toHaveLength(1);
   });
 
+  it("samples Web Audio only once for consumers in the same animation frame", async () => {
+    const webAudio = installAudioContext();
+    let player!: AudioPlayerController;
+    render(
+      <Harness
+        currentTrack={song}
+        visualizerEnabled
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await act(async () => {
+      await player.visualizer.activate();
+    });
+
+    const firstFrame = player.visualizer.readFrame(1_000);
+    const sharedFrame = player.visualizer.readFrame(1_000);
+
+    expect(sharedFrame).toBe(firstFrame);
+    expect(webAudio.analyser.getByteFrequencyData).toHaveBeenCalledOnce();
+    expect(webAudio.analyser.getByteTimeDomainData).toHaveBeenCalledOnce();
+
+    player.visualizer.readFrame(1_001);
+    expect(webAudio.analyser.getByteFrequencyData).toHaveBeenCalledTimes(2);
+    expect(webAudio.analyser.getByteTimeDomainData).toHaveBeenCalledTimes(2);
+
+    player.visualizer.readFrame();
+    player.visualizer.readFrame();
+    expect(webAudio.analyser.getByteFrequencyData).toHaveBeenCalledTimes(4);
+    expect(webAudio.analyser.getByteTimeDomainData).toHaveBeenCalledTimes(4);
+  });
+
   it("turns visualizer rendering off without closing or disconnecting its audio graph", async () => {
     const webAudio = installAudioContext();
     const play = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
@@ -496,6 +529,95 @@ describe("useAudioPlayer", () => {
     expect(getScrobbleThreshold(180)).toBe(90);
     expect(getScrobbleThreshold(900)).toBe(240);
     expect(getScrobbleThreshold(0)).toBe(0);
+  });
+
+  it("publishes playback state only when its displayed second changes", async () => {
+    const timedSong = { ...song, duration: 181 };
+    const snapshots: Array<{ progress: number; duration: number }> = [];
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={timedSong}
+        onController={(controller) => {
+          player = controller;
+          snapshots.push({ progress: controller.progress, duration: controller.duration });
+        }}
+      />,
+    );
+    await waitFor(() => expect(player.duration).toBe(181));
+    const audio = view.getByTestId("audio") as HTMLAudioElement;
+    let mediaDuration = 181.2;
+    Object.defineProperty(audio, "duration", {
+      configurable: true,
+      get: () => mediaDuration,
+    });
+    snapshots.length = 0;
+
+    audio.currentTime = 0.2;
+    act(() => player.handleTimeUpdate());
+    audio.currentTime = 0.8;
+    act(() => player.handleTimeUpdate());
+    expect(snapshots).toEqual([]);
+    expect(player.progress).toBe(0);
+    expect(player.duration).toBe(181);
+
+    audio.currentTime = 1.1;
+    act(() => player.handleTimeUpdate());
+    audio.currentTime = 1.8;
+    act(() => player.handleTimeUpdate());
+    expect(snapshots).toEqual([{ progress: 1.1, duration: 181 }]);
+
+    mediaDuration = 182.1;
+    audio.currentTime = 1.9;
+    act(() => player.handleTimeUpdate());
+    mediaDuration = 182.9;
+    audio.currentTime = 1.95;
+    act(() => player.handleTimeUpdate());
+    expect(snapshots).toEqual([
+      { progress: 1.1, duration: 181 },
+      { progress: 1.1, duration: 182.1 },
+    ]);
+
+    audio.currentTime = 2.01;
+    act(() => player.handleTimeUpdate());
+    expect(snapshots.at(-1)).toEqual({ progress: 2.01, duration: 182.1 });
+
+    act(() => player.seek(2.8));
+    expect(player.progress).toBe(2.8);
+
+    audio.currentTime = 182.1;
+    act(() => player.handleEnded());
+    expect(player.progress).toBe(182.1);
+    expect(player.duration).toBe(182.9);
+  });
+
+  it("uses exact media time for scrobbling between throttled progress updates", async () => {
+    const timedSong = { ...song, duration: 181 };
+    const timedClient = navidromeClient();
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={timedSong}
+        activeClient={timedClient}
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    await waitFor(() => expect(player.duration).toBe(181));
+    const audio = view.getByTestId("audio") as HTMLAudioElement;
+    Object.defineProperty(audio, "duration", { configurable: true, value: 181 });
+
+    audio.currentTime = 90.1;
+    act(() => player.handleTimeUpdate());
+    expect(player.progress).toBe(90.1);
+    expect(timedClient.scrobble).not.toHaveBeenCalled();
+
+    audio.currentTime = 90.6;
+    act(() => player.handleTimeUpdate());
+    expect(player.progress).toBe(90.1);
+    expect(timedClient.scrobble).toHaveBeenCalledOnce();
+    expect(timedClient.scrobble).toHaveBeenCalledWith(timedSong.id, true);
   });
 });
 

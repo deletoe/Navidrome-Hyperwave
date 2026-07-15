@@ -45,6 +45,18 @@ type NavigationTarget =
 
 type NavigationEntry = NavigationTarget & { scrollPosition: number };
 
+const AMBIENT_VISUALIZER_BUDGET = {
+  maxFps: 30,
+  maxPixelCount: 1_800_000,
+  maxDevicePixelRatio: 1.25,
+} as const;
+
+const PLAYER_VISUALIZER_BUDGET = {
+  maxFps: 45,
+  maxPixelCount: 500_000,
+  maxDevicePixelRatio: 1.5,
+} as const;
+
 function detailRequestsMatch(left: DetailRequest, right: DetailRequest): boolean {
   if (left.kind !== right.kind) return false;
   if (left.kind === "genre" && right.kind === "genre") return left.genre === right.genre;
@@ -497,6 +509,7 @@ export default function App() {
       <div className="visualizer-layer" aria-hidden="true">
         <AudioVisualizer
           className="ambient-visualizer"
+          {...AMBIENT_VISUALIZER_BUDGET}
           readFrame={player.visualizer.readFrame}
           enabled={visualizerEnabled && player.visualizer.status === "ready"}
           playing={player.isPlaying}
@@ -536,6 +549,7 @@ export default function App() {
             visualizer={(
               <AudioVisualizer
                 className="player-dock__visualizer-canvas"
+                {...PLAYER_VISUALIZER_BUDGET}
                 readFrame={player.visualizer.readFrame}
                 enabled={visualizerEnabled && player.visualizer.status === "ready"}
                 playing={player.isPlaying}

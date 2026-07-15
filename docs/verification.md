@@ -1,6 +1,6 @@
 # My Navidrome 5.6 Verification
 
-Verified locally through 2026-07-14 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
+Verified locally through 2026-07-15 (Asia/Shanghai). No password, API key, tokenized media URL, or complete authentication query is recorded in this file.
 
 ## Final automated gate
 
@@ -12,18 +12,18 @@ npm run test:run && npm run typecheck && npm run build && npm audit --audit-leve
 
 Result:
 
-- Vitest 4.1.10: 22 test files passed, 209 tests passed, 0 failed.
+- Vitest 4.1.10: 22 test files passed, 218 tests passed, 0 failed.
 - TypeScript project build: exit 0, 0 diagnostics.
 - Vite 6.4.3 production build: exit 0, 1,618 modules transformed.
-- Production bundle: CSS 110.63 kB (19.38 kB gzip), JS 334.32 kB (101.51 kB gzip).
+- Production bundle: CSS 111.58 kB (19.43 kB gzip), JS 336.40 kB (102.19 kB gzip).
 - Dependency audit: 0 vulnerabilities.
 
-The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven materially different Canvas strategies, seven particle systems, 60/120Hz-stable emission, bounded per-frame work, one RAF chain per stable Canvas, two coordinated ambient/player stages, ready-only animation scheduling, one MediaElementSource across concurrent activation and track changes, direct-destination fallback, ordinary playback continuing while `AudioContext.resume()` remains pending, timed-out resume retry, context state synchronization, stale play rejection suppression, repeat-one rejection rollback, and a root-level Now Playing portal that escapes player clipping contexts. Artist coverage includes two-level `getArtists` normalization, lazy directory loading, stable controlled filtering, five-request album expansion, real transport aborts, 15-second timeouts, progressive publication, order preservation, track deduplication, partial failure, forced refresh, stale-response guards, authoritative favorite truth, focus/scroll restoration, accessible artist links, duplicate-navigation prevention, and full-collection playback. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
+The suite now additionally covers authenticated and size-bounded cover fetching, deterministic palette extraction and stale-request cancellation, safe visual-preference persistence, exact genre override precedence, intensity/palette CSS variables, the complete Theme Studio editor, four visualizer modes, seven materially different Canvas strategies, seven particle systems, 60/120Hz-stable emission, bounded per-frame work, one RAF chain per stable Canvas, 30/45 FPS render budgets, hard backing-pixel and DPR limits, hidden-page suspension, same-frame analyser reuse, two coordinated ambient/player stages, ready-only animation scheduling, one MediaElementSource across concurrent activation and track changes, display-second progress publication, exact scrobble timing, direct-destination fallback, ordinary playback continuing while `AudioContext.resume()` remains pending, timed-out resume retry, context state synchronization, stale play rejection suppression, repeat-one rejection rollback, and a root-level Now Playing portal that escapes player clipping contexts. Artist coverage includes two-level `getArtists` normalization, lazy directory loading, stable controlled filtering, five-request album expansion, real transport aborts, 15-second timeouts, progressive publication, order preservation, track deduplication, partial failure, forced refresh, stale-response guards, authoritative favorite truth, focus/scroll restoration, accessible artist links, duplicate-navigation prevention, and full-collection playback. Existing authentication, queue, scrobble, Media Session, navigation, favorite, icon, image, transition, DOM-identity and responsive regressions remain covered.
 
 ## Local server and credential boundary
 
 - Address: `http://127.0.0.1:5173/`
-- Listener: Node PID `112`, bound only to `127.0.0.1:5173`.
+- Listener: Node PID `33509`, bound only to `127.0.0.1:5173`.
 - Vite uses `strictPort: true`; it fails instead of silently selecting another port.
 - The user-authored credential document remains outside the build and is denied by the dev server: `/docs/requirements.md` returns HTTP 403.
 - Theme art is publicly served as intended; `/assets/themes/prism-ambient.webp` returns HTTP 200 with the expected 47,434-byte body.
@@ -97,7 +97,7 @@ Responsive measurements from the real Studio surface:
 | 390×844 | document width 390px, 362.8px Studio content, 64px five-entry bottom navigation, one ambient Canvas plus one clipped mini-player Canvas, smallest visible button dimension 44px |
 | 320×800 | document width 320px, two-column personality previews, mapping rows degrade to two grid rows, five-entry navigation and 44px minimum visible buttons |
 
-All three viewports had zero horizontal overflow. Both Canvas stages have `pointer-events: none`; automated shell coverage holds each at one stable instance through mapping, preview and mode changes, and each caps its bitmap at 2× device pixel ratio.
+All three viewports had zero horizontal overflow. Both Canvas stages have `pointer-events: none`; automated shell coverage holds each at one stable instance through mapping, preview and mode changes. The current performance budget caps the ambient stage at 1.25× DPR / 1.8 million pixels and the player stage at 1.5× DPR / 500,000 pixels.
 
 The automation browser still rejects audible `play()` because its synthetic click is not a trusted user interaction. The real audio element nevertheless loaded the authenticated stream to readyState 4 with no media error and `crossorigin="anonymous"`; the previously recorded Range proof remains `206`. The live analyser therefore remained in its honest `waiting` state during automation, and no claim is made that browser automation heard audio or observed live FFT energy. Unit coverage proves that a pending or failed AudioContext cannot delay ordinary `audio.play()`, and an actual human click remains the final audible/analyser check.
 
@@ -109,7 +109,15 @@ Fixture-driven rendering confirms seven distinct operation signatures: rotating 
 
 The Web Audio activation path now times out an unclaimed suspended context after 600ms, closes it safely, clears the shared pending request and allows the next user gesture to retry. A claimed graph publishes `running`, suspended/interrupted and closed changes through `onstatechange`; both Canvas loops remain stopped until that graph is actually ready. Playback attempts are generation-checked so a late rejection from the previous source cannot flip a newer track back to paused or stop its Canvas, and repeat-one reuses the same guarded path so a rejected restart rolls the UI back cleanly.
 
-No credential submission was performed during this iteration's browser pass. The public connection surface freshly rendered at 1280×720 and 390×844 with document width exactly matching the viewport and a 45.8px submit target; signed-in metadata and stream evidence remain the previously authorized checks above. Audible output and non-zero live FFT energy still require the user's real click and are not claimed from synthetic browser automation.
+## Playback performance iteration acceptance
+
+The 2026-07-15 performance pass keeps all seven renderer strategies and four user modes, but assigns different budgets to the two stages. The ambient Canvas reports 30 FPS, 1,800,000 maximum backing pixels and 1.25 maximum DPR; the compact player Canvas reports 45 FPS, 500,000 pixels and 1.5 DPR. At a 1920×1080 CSS viewport on a 2× display, the old ambient path could clear 8.29 million pixels at every native frame. The new ceiling is 1.8 million at 30 FPS, reducing theoretical ambient pixel throughput by about 9.2× on 60Hz and 18.4× on 120Hz displays.
+
+Unit scheduling drives five synthetic 120Hz callbacks through a 30 FPS Canvas and observes only two analyser/render reads; a one-second 120Hz run also verifies the 45 FPS player cadence, and a simulated main-thread stall proves missed deadlines do not trigger a catch-up burst. Normal and extremely large Canvas coverage verifies the backing store remains within the requested hard ceiling; visibility coverage verifies the outstanding RAF is cancelled while hidden and restarted with fresh timing. Two consumers sharing one RAF timestamp now cause one frequency read and one waveform read, while different timestamps still produce fresh data.
+
+Playback `timeupdate` now publishes progress and duration only when their displayed second changes. Tests retain exact seek and ended updates and prove a real 90.5-second current time still crosses the scrobble threshold even when it falls inside an already-published UI second. While the analyser is actually ready, inherited surface blur is disabled, full-screen Canvas CSS compositing is normal/filter-free, and the strong personality filters remain on the much smaller player stage. Bulk card transitions no longer animate shadows and transforms; whole-shelf paint containment is deliberately avoided so mobile scroll restoration and focus outlines retain their existing geometry.
+
+The public connection surface was rechecked without submitting autofilled credentials. At 1280×720 and 390×844, document width exactly matched the viewport, the submit target remained 45.8px high, no image was broken, and the browser recorded no warnings or errors. Signed-in metadata and stream evidence remain the previously authorized checks above. Real audible output and non-zero FFT energy still require the user's trusted play gesture and are not claimed from this automation pass.
 
 ## Live Navidrome/API checks
 

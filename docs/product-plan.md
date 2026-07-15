@@ -95,9 +95,9 @@ My Navidrome 5.6 是一个面向个人长期使用的 Navidrome Web 音乐客户
 
 Theme Studio 是 Home、Artists、Search、Favorites 之外的第五个主入口。它展示当前封面、实时提取的三枚色样、0–100 强度滑杆、四种可视化模式、Automatic 加七套人格预览卡，以及由真实曲库曲风生成的可筛选映射表。曲风映射使用 NFKC 和空白归一化后的精确匹配，优先级高于内置正则；选择 Automatic 会删除覆盖项。持久化数据严格限制为版本、强度、布尔开关、可视化枚举和最多 250 条曲风到人格的白名单映射。
 
-实时音频层使用两块由同一 analyser 与同一人格策略驱动的稳定装饰 Canvas：全屏环境舞台位于背景与应用壳之间，播放器舞台位于 Now Playing 表面内部，因此频谱不会再只藏在半透明页面背景中。Prism、Cyber、Bloom、Pixel、Rock、Cinematic 和 Lounge 分别绘制旋转棱镜万花筒、透视霓虹控制台、双轨花瓣、像素阶梯电平、三重撕裂波、宽银幕光幕和唱片黄铜环；七套粒子的发射位置、轨迹和形状也互不相同。Spectrum、Particles 与 Hybrid 决定绘制组合；单块 Canvas 限制为最高 2× DPR、最多 96 个波形采样点、最多 80 个粒子和一条 RAF 链，关闭、暂停或 analyser 尚未 ready 时立即清空并停止绘制。
+实时音频层使用两块由同一 analyser 与同一人格策略驱动的稳定装饰 Canvas：全屏环境舞台位于背景与应用壳之间，播放器舞台位于 Now Playing 表面内部，因此频谱不会再只藏在半透明页面背景中。Prism、Cyber、Bloom、Pixel、Rock、Cinematic 和 Lounge 分别绘制旋转棱镜万花筒、透视霓虹控制台、双轨花瓣、像素阶梯电平、三重撕裂波、宽银幕光幕和唱片黄铜环；七套粒子的发射位置、轨迹和形状也互不相同。Spectrum、Particles 与 Hybrid 决定绘制组合。环境舞台限制为 30 FPS、180 万 backing pixels 和 1.25× DPR，播放器舞台限制为 45 FPS、50 万 backing pixels 和 1.5× DPR；两者在相同浏览器帧内复用一次 analyser 采样，页面隐藏时取消 RAF。单帧最多使用 96 个波形采样点和 80 个粒子，关闭、暂停或 analyser 尚未 ready 时立即清空并停止绘制。
 
-Web Audio 图只在用户播放或主动切换可视化时创建，且每个实际 `<audio>` 最多调用一次 `createMediaElementSource`。链路固定为 media source → analyser → destination；创建、恢复或 CORS 分析失败不会阻断普通播放，并在 Studio 与播放器中显示状态。首次 `AudioContext.resume()` 若长时间不返回，会在尚未接管媒体元素时安全放弃并保留 `waiting`，下一次真实播放手势可以重新创建；已连接 context 的 suspended/interrupted/closed 状态也会实时同步。快速切歌通过播放代次阻止旧 `play()` rejection 覆盖新歌曲的播放和频谱状态。本轮按用户选择，新的实时频谱/粒子层不根据 `prefers-reduced-motion` 自动降级；既有主题转场和环境动画的减少动态效果行为保持不变。
+Web Audio 图只在用户播放或主动切换可视化时创建，且每个实际 `<audio>` 最多调用一次 `createMediaElementSource`。链路固定为 media source → analyser → destination；创建、恢复或 CORS 分析失败不会阻断普通播放，并在 Studio 与播放器中显示状态。首次 `AudioContext.resume()` 若长时间不返回，会在尚未接管媒体元素时安全放弃并保留 `waiting`，下一次真实播放手势可以重新创建；已连接 context 的 suspended/interrupted/closed 状态也会实时同步。快速切歌通过播放代次阻止旧 `play()` rejection 覆盖新歌曲的播放和频谱状态。播放进度只在跨越可见整秒时发布 React 状态，seek、ended 和 scrobble 仍使用真实时间即时处理，避免整页曲库随高频 `timeupdate` 重绘。播放可视化实际 ready 期间，大面积表面停止 backdrop blur 重采样，强滤镜只保留在较小的播放器舞台；批量卡片转场不再同时动画阴影和位移，以降低主题切换时的整页合成负担。本轮按用户选择，新的实时频谱/粒子层不根据 `prefers-reduced-motion` 自动降级；既有主题转场和环境动画的减少动态效果行为保持不变。
 
 ## 5. 响应式产品形态
 
@@ -166,6 +166,8 @@ Web Audio 图只在用户播放或主动切换可视化时创建，且每个实�
 - 主题强度从 0 调到 100 时，运行时强度和分层不透明度变量同步变化，但 `.app-shell`、`.player-dock`、`audio` 和当前焦点节点身份不变，也不额外触发主题转场。
 - 每个真实曲风可映射到任意七套人格并恢复 Automatic；精确映射优先于默认曲风规则，刷新后安全映射仍存在。
 - Spectrum、Particles、Hybrid 和 Off 四种模式可从 Studio 或播放器切换；环境与播放器 Canvas 保持稳定身份，同一个音频元素最多创建一个 MediaElementSource，关闭可视化不关闭 AudioContext、不拆连接也不影响继续播放。
+- 120Hz RAF 输入下环境舞台不超过 30 次绘制/秒，播放器舞台不超过 45 次；Canvas backing pixels 不得超过各自预算，相同 RAF timestamp 只读取一次 analyser，页面隐藏后不得继续排队绘制。
+- 同一显示秒内的连续 `timeupdate` 不重复发布进度 React 状态，但 seek、曲末和跨越 scrobble 阈值仍立即生效。
 - 首次 AudioContext 恢复永久 pending 后，下一次用户手势仍能重试并进入 ready；context 离开 running 时状态不得误报 ready；旧曲延迟到达的 play rejection 不得停止新曲或清空新曲频谱。
 - `getArtists` 的两层索引可兼容单对象、数组和空返回；进入歌手时先显示专辑，再以最多五个可中止的并发请求渐进聚合完整歌曲，旧请求、超时、断连和局部失败不会污染当前详情或继续占用网络传输。
 - 1280×720 与 390×844 下 Artists 和 Studio 均无横向溢出，五入口导航可见可达；两块 Canvas 均只作装饰、不可点击、各自只有一个稳定实例，移动端新增模式控件不小于 44×44px。

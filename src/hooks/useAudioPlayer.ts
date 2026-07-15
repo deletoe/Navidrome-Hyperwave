@@ -33,7 +33,7 @@ export interface AudioVisualizerController {
   status: AudioVisualizerStatus;
   error?: string;
   activate(): Promise<void>;
-  readFrame(): AudioVisualizerFrame | undefined;
+  readFrame(frameTime?: number): AudioVisualizerFrame | undefined;
 }
 
 export interface AudioPlayerController {
@@ -67,6 +67,8 @@ interface AudioGraph {
   analyser?: AnalyserNode;
   frequency?: Uint8Array<ArrayBuffer>;
   waveform?: Uint8Array<ArrayBuffer>;
+  lastFrameTime?: number;
+  lastFrame?: AudioVisualizerFrame;
 }
 
 const VISUALIZER_RESUME_TIMEOUT_MS = 600;
@@ -95,6 +97,8 @@ export function useAudioPlayer({
     promise: Promise<void>;
   } | undefined>(undefined);
   const playbackAttempt = useRef(0);
+  const publishedProgressSecond = useRef(0);
+  const publishedDurationSecond = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -148,6 +152,8 @@ export function useAudioPlayer({
     startedForLoad.current = false;
     submittedForLoad.current = false;
     mediaUrls?.clear();
+    publishedProgressSecond.current = 0;
+    publishedDurationSecond.current = 0;
     setIsPlaying(false);
     setProgress(0);
     setDuration(0);
@@ -178,8 +184,11 @@ export function useAudioPlayer({
     loadedClient.current = client;
     startedForLoad.current = false;
     submittedForLoad.current = false;
+    const trackDuration = currentTrack.duration ?? 0;
+    publishedProgressSecond.current = 0;
+    publishedDurationSecond.current = getDisplaySecond(trackDuration);
     setProgress(0);
-    setDuration(currentTrack.duration ?? 0);
+    setDuration(trackDuration);
     setError(undefined);
 
     if (playingRef.current) {
@@ -293,6 +302,7 @@ export function useAudioPlayer({
     const audio = audioRef.current;
     if (audio && audio.currentTime > 3) {
       audio.currentTime = 0;
+      publishedProgressSecond.current = 0;
       setProgress(0);
       return;
     }
@@ -305,6 +315,7 @@ export function useAudioPlayer({
     const maximum = Number.isFinite(audio.duration) ? audio.duration : duration;
     const value = Math.min(Math.max(seconds, 0), maximum || 0);
     audio.currentTime = value;
+    publishedProgressSecond.current = getDisplaySecond(value);
     setProgress(value);
   }
 
@@ -321,19 +332,34 @@ export function useAudioPlayer({
   function handleLoadedMetadata(): void {
     const audio = audioRef.current;
     if (!audio) return;
-    setDuration(Number.isFinite(audio.duration) ? audio.duration : currentTrack?.duration ?? 0);
+    const nextDuration = Number.isFinite(audio.duration)
+      ? audio.duration
+      : currentTrack?.duration ?? 0;
+    publishedDurationSecond.current = getDisplaySecond(nextDuration);
+    setDuration(nextDuration);
   }
 
   function handleTimeUpdate(): void {
     const audio = audioRef.current;
     if (!audio || !client || !currentTrack) return;
-    const nextDuration = Number.isFinite(audio.duration) ? audio.duration : currentTrack.duration ?? 0;
-    setProgress(audio.currentTime);
-    setDuration(nextDuration);
+    const currentTime = audio.currentTime;
+    const nextDuration = Number.isFinite(audio.duration)
+      ? audio.duration
+      : currentTrack.duration ?? 0;
+    const nextProgressSecond = getDisplaySecond(currentTime);
+    const nextDurationSecond = getDisplaySecond(nextDuration);
+    if (nextProgressSecond !== publishedProgressSecond.current) {
+      publishedProgressSecond.current = nextProgressSecond;
+      setProgress(currentTime);
+    }
+    if (nextDurationSecond !== publishedDurationSecond.current) {
+      publishedDurationSecond.current = nextDurationSecond;
+      setDuration(nextDuration);
+    }
     const threshold = getScrobbleThreshold(nextDuration);
     if (
       threshold > 0 &&
-      audio.currentTime >= threshold &&
+      currentTime >= threshold &&
       !submittedForLoad.current
     ) {
       submittedForLoad.current = true;
@@ -345,6 +371,7 @@ export function useAudioPlayer({
     const audio = audioRef.current;
     if (queueState.repeatMode === "one" && audio) {
       audio.currentTime = 0;
+      publishedProgressSecond.current = 0;
       setProgress(0);
       startedForLoad.current = false;
       submittedForLoad.current = false;
@@ -361,6 +388,18 @@ export function useAudioPlayer({
     }
     const atEnd = queueState.currentIndex >= queueState.tracks.length - 1;
     if (atEnd && queueState.repeatMode === "off") {
+      if (audio) {
+        const finalDuration = Number.isFinite(audio.duration)
+          ? audio.duration
+          : currentTrack?.duration ?? duration;
+        const finalProgress = Number.isFinite(audio.currentTime)
+          ? audio.currentTime
+          : finalDuration;
+        publishedProgressSecond.current = getDisplaySecond(finalProgress);
+        publishedDurationSecond.current = getDisplaySecond(finalDuration);
+        setProgress(finalProgress);
+        setDuration(finalDuration);
+      }
       playbackAttempt.current += 1;
       playingRef.current = false;
       setIsPlaying(false);
@@ -498,7 +537,7 @@ export function useAudioPlayer({
     }
   }
 
-  function readVisualizerFrame(): AudioVisualizerFrame | undefined {
+  function readVisualizerFrame(frameTime?: number): AudioVisualizerFrame | undefined {
     const graph = audioGraph.current;
     if (
       !graph ||
@@ -507,9 +546,20 @@ export function useAudioPlayer({
       !graph.waveform ||
       graph.context.state !== "running"
     ) return undefined;
+    if (frameTime !== undefined && graph.lastFrameTime === frameTime && graph.lastFrame) {
+      return graph.lastFrame;
+    }
     graph.analyser.getByteFrequencyData(graph.frequency);
     graph.analyser.getByteTimeDomainData(graph.waveform);
-    return { frequency: graph.frequency, waveform: graph.waveform };
+    const frame = { frequency: graph.frequency, waveform: graph.waveform };
+    if (frameTime === undefined) {
+      graph.lastFrameTime = undefined;
+      graph.lastFrame = undefined;
+    } else {
+      graph.lastFrameTime = frameTime;
+      graph.lastFrame = frame;
+    }
+    return frame;
   }
 
   function publishAudioGraphStatus(graph: AudioGraph): void {
@@ -602,4 +652,8 @@ type AudioContextGlobal = typeof globalThis & {
 function getAudioContextConstructor(): typeof AudioContext | undefined {
   const scope = globalThis as AudioContextGlobal;
   return scope.AudioContext ?? scope.webkitAudioContext;
+}
+
+function getDisplaySecond(value: number): number {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
