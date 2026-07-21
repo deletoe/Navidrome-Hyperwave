@@ -18,6 +18,7 @@ import { ThemeBurst } from "./components/ThemeBurst";
 import { ThemeStudio, type ThemePreviewId } from "./components/ThemeStudio";
 import { Toast } from "./components/Toast";
 import { useAudioPlayer } from "./hooks/useAudioPlayer";
+import { useAudioPreferences } from "./hooks/useAudioPreferences";
 import { useCoverPalette } from "./hooks/useCoverPalette";
 import { useNavidrome } from "./hooks/useNavidrome";
 import { useVisualPreferences } from "./hooks/useVisualPreferences";
@@ -67,6 +68,7 @@ function detailRequestsMatch(left: DetailRequest, right: DetailRequest): boolean
 export default function App() {
   const navidrome = useNavidrome();
   const visualPreferences = useVisualPreferences();
+  const audioPreferences = useAudioPreferences();
   const [queueState, dispatch] = useReducer(queueReducer, createInitialQueueState());
   const currentTrack = getCurrentTrack(queueState);
   const visualizerEnabled = visualPreferences.preferences.visualizer !== "off";
@@ -76,6 +78,7 @@ export default function App() {
     queueState,
     dispatch,
     visualizerEnabled,
+    audioPreferences: audioPreferences.preferences,
   });
   const [view, setView] = useState<AppView>("home");
   const [previewThemeId, setPreviewThemeId] = useState<ThemePreviewId>("auto");
@@ -260,6 +263,9 @@ export default function App() {
 
   function requestPlayback(track: Track, index: number, tracks: Track[]): void {
     if (visualizerEnabled) void player.visualizer.activate();
+    if (audioPreferences.preferences.eqEnabled || audioPreferences.preferences.stereoBlend > 0) {
+      void player.audioProcessing.activate();
+    }
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks, startIndex: index });
     setPlayRequest((value) => value + 1);
@@ -269,6 +275,9 @@ export default function App() {
   function playCollection(tracks: Track[]): void {
     if (tracks.length === 0) return;
     if (visualizerEnabled) void player.visualizer.activate();
+    if (audioPreferences.preferences.eqEnabled || audioPreferences.preferences.stereoBlend > 0) {
+      void player.audioProcessing.activate();
+    }
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks });
     setPlayRequest((value) => value + 1);
@@ -290,6 +299,9 @@ export default function App() {
     const track = queueState.tracks[index];
     if (!track) return;
     if (visualizerEnabled) void player.visualizer.activate();
+    if (audioPreferences.preferences.eqEnabled || audioPreferences.preferences.stereoBlend > 0) {
+      void player.audioProcessing.activate();
+    }
     pendingPlay.current = true;
     dispatch({ type: "select", index });
     setPlayRequest((value) => value + 1);
@@ -546,6 +558,7 @@ export default function App() {
             onToggleQueue={() => setQueueOpen((value) => !value)}
             visualizerMode={visualPreferences.preferences.visualizer}
             onSetVisualizerMode={setVisualizerMode}
+            audioSettings={audioPreferences}
             visualizer={(
               <AudioVisualizer
                 className="player-dock__visualizer-canvas"

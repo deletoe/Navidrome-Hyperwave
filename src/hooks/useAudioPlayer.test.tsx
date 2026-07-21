@@ -3,6 +3,7 @@ import { useReducer } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { SubsonicClient } from "../lib/subsonic";
+import { DEFAULT_AUDIO_PREFERENCES, type AudioPreferences } from "../lib/audioPreferences";
 import {
   createInitialQueueState,
   queueReducer,
@@ -42,12 +43,14 @@ function Harness({
   currentTrack,
   activeClient = client,
   visualizerEnabled = false,
+  audioPreferences,
   repeatMode = "off",
   onController,
 }: {
   currentTrack?: Track;
   activeClient?: SubsonicClient;
   visualizerEnabled?: boolean;
+  audioPreferences?: AudioPreferences;
   repeatMode?: QueueState["repeatMode"];
   onController?: (controller: AudioPlayerController) => void;
 }) {
@@ -66,6 +69,7 @@ function Harness({
     queueState,
     dispatch,
     visualizerEnabled,
+    audioPreferences,
   });
   onController?.(player);
 
@@ -673,7 +677,8 @@ describe("useAudioPlayer", () => {
     expect(webAudio.instances).toHaveLength(1);
     expect(context.resume).toHaveBeenCalledOnce();
     expect(context.createMediaElementSource).toHaveBeenCalledOnce();
-    expect(webAudio.source.connect).toHaveBeenCalledWith(webAudio.analyser);
+    expect(webAudio.source.connect).toHaveBeenCalledWith(webAudio.gains[0]);
+    expect(webAudio.merger.connect).toHaveBeenCalledWith(webAudio.analyser);
     expect(webAudio.analyser.connect).toHaveBeenCalledWith(context.destination);
     expect(player.visualizer.status).toBe("ready");
 
@@ -709,6 +714,121 @@ describe("useAudioPlayer", () => {
 
     expect(context.createMediaElementSource).toHaveBeenCalledOnce();
     expect(webAudio.instances).toHaveLength(1);
+  });
+
+  it("applies EQ headroom and continuously blends hard-panned stereo channels", async () => {
+    const webAudio = installAudioContext();
+    let player!: AudioPlayerController;
+    const bandGains = [6, 4, 2, 0, -1, 0, 1, 2, 3, 4];
+    const preferences: AudioPreferences = {
+      ...DEFAULT_AUDIO_PREFERENCES,
+      eqEnabled: true,
+      preset: "custom",
+      preampDb: 2,
+      bandGains,
+      stereoBlend: 50,
+    };
+    const view = render(
+      <Harness
+        currentTrack={song}
+        audioPreferences={preferences}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+
+    await act(async () => player.audioProcessing.activate());
+
+    expect(player.visualizer.status).toBe("off");
+    expect(player.audioProcessing.status).toBe("ready");
+    expect(webAudio.filters).toHaveLength(10);
+    expect(webAudio.filters.map((filter) => filter.type)).toEqual(Array(10).fill("peaking"));
+    expect(webAudio.filters.map((filter) => filter.gain.value)).toEqual(bandGains);
+    expect(webAudio.gains[0]!.gain.value).toBeCloseTo(Math.pow(10, -4 / 20));
+    expect(webAudio.gains[2]!.gain.value).toBe(0.75);
+    expect(webAudio.gains[3]!.gain.value).toBe(0.75);
+    expect(webAudio.gains[4]!.gain.value).toBe(0.25);
+    expect(webAudio.gains[5]!.gain.value).toBe(0.25);
+
+    view.rerender(
+      <Harness
+        currentTrack={song}
+        audioPreferences={{ ...preferences, stereoBlend: 100 }}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(webAudio.gains[2]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.5, 0, 0.015);
+      expect(webAudio.gains[4]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(0.5, 0, 0.015);
+    });
+  });
+
+  it("smoothly bypasses EQ and restores original stereo without rebuilding the graph", async () => {
+    const webAudio = installAudioContext();
+    let player!: AudioPlayerController;
+    const enabled: AudioPreferences = {
+      ...DEFAULT_AUDIO_PREFERENCES,
+      eqEnabled: true,
+      preset: "bass",
+      bandGains: [5, 4, 3, 1.5, 0, -1, -1.5, -1, 0, 1],
+      stereoBlend: 100,
+    };
+    const view = render(
+      <Harness
+        currentTrack={song}
+        audioPreferences={enabled}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+    await act(async () => player.audioProcessing.activate());
+
+    view.rerender(
+      <Harness
+        currentTrack={song}
+        audioPreferences={{ ...enabled, eqEnabled: false, stereoBlend: 0 }}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+
+    await waitFor(() => expect(player.audioProcessing.status).toBe("off"));
+    expect(webAudio.instances[0]!.createMediaElementSource).toHaveBeenCalledOnce();
+    expect(webAudio.gains[0]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.015);
+    for (const filter of webAudio.filters) {
+      expect(filter.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 0, 0.015);
+    }
+    expect(webAudio.gains[2]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(1, 0, 0.015);
+    expect(webAudio.gains[4]!.gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 0, 0.015);
+  });
+
+  it("uses the latest tuning values when AudioContext activation finishes late", async () => {
+    let releaseResume!: () => void;
+    const resumePromise = new Promise<void>((resolve) => { releaseResume = resolve; });
+    const webAudio = installAudioContext({ resumePromise });
+    let player!: AudioPlayerController;
+    const view = render(
+      <Harness
+        currentTrack={song}
+        audioPreferences={DEFAULT_AUDIO_PREFERENCES}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+
+    const activation = player.audioProcessing.activate();
+    view.rerender(
+      <Harness
+        currentTrack={song}
+        audioPreferences={{ ...DEFAULT_AUDIO_PREFERENCES, stereoBlend: 100 }}
+        onController={(controller) => { player = controller; }}
+      />,
+    );
+    await act(async () => {
+      releaseResume();
+      await activation;
+    });
+
+    expect(player.audioProcessing.status).toBe("ready");
+    expect(webAudio.gains[2]!.gain.value).toBe(0.5);
+    expect(webAudio.gains[4]!.gain.value).toBe(0.5);
   });
 
   it("samples Web Audio only once for consumers in the same animation frame", async () => {
@@ -1064,9 +1184,19 @@ function installAudioContext(
     getByteFrequencyData: vi.fn((values: Uint8Array<ArrayBuffer>) => values.fill(96)),
     getByteTimeDomainData: vi.fn((values: Uint8Array<ArrayBuffer>) => values.fill(128)),
   } as unknown as AnalyserNode;
+  const audioParam = (value = 0) => ({
+    value,
+    setTargetAtTime: vi.fn(),
+  }) as unknown as AudioParam;
+  const gains: GainNode[] = [];
+  const filters: BiquadFilterNode[] = [];
+  const splitter = { connect: vi.fn(), disconnect: vi.fn() } as unknown as ChannelSplitterNode;
+  const merger = { connect: vi.fn(), disconnect: vi.fn() } as unknown as ChannelMergerNode;
 
   class MockAudioContext {
     state: AudioContextState = "suspended";
+    currentTime = 0;
+    sampleRate = 48_000;
     destination = {} as AudioDestinationNode;
     resume = vi.fn(async () => {
       await (options.resumePromises?.[instances.indexOf(this)] ?? options.resumePromise);
@@ -1077,6 +1207,32 @@ function installAudioContext(
     });
     createMediaElementSource = vi.fn((_audio: HTMLMediaElement) => source);
     createAnalyser = vi.fn(() => analyser);
+    createGain = vi.fn(() => {
+      const gain = {
+        gain: audioParam(1),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        channelCount: 2,
+        channelCountMode: "max",
+        channelInterpretation: "speakers",
+      } as unknown as GainNode;
+      gains.push(gain);
+      return gain;
+    });
+    createBiquadFilter = vi.fn(() => {
+      const filter = {
+        type: "lowpass",
+        frequency: audioParam(350),
+        Q: audioParam(1),
+        gain: audioParam(0),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      } as unknown as BiquadFilterNode;
+      filters.push(filter);
+      return filter;
+    });
+    createChannelSplitter = vi.fn(() => splitter);
+    createChannelMerger = vi.fn(() => merger);
 
     constructor() {
       if (options.constructorError) throw options.constructorError;
@@ -1086,7 +1242,7 @@ function installAudioContext(
 
   const instances: MockAudioContext[] = [];
   vi.stubGlobal("AudioContext", MockAudioContext);
-  return { instances, source, analyser };
+  return { instances, source, analyser, gains, filters, splitter, merger };
 }
 
 function navidromeClient(

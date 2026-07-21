@@ -2,10 +2,12 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
+import type { AudioPreferencesController } from "../hooks/useAudioPreferences";
 import { formatDuration } from "../lib/format";
 import { VISUALIZER_MODES, type VisualizerMode } from "../lib/visualPreferences";
 import type { Artist, Track } from "../types";
 import { AppIcon } from "./AppIcon";
+import { AudioTuningPanel } from "./AudioTuningPanel";
 import { ArtistLinks } from "./ArtistLinks";
 import { Artwork } from "./Artwork";
 
@@ -22,6 +24,7 @@ export interface PlayerDockProps {
   visualizer?: ReactNode;
   visualizerMode?: VisualizerMode;
   onSetVisualizerMode?: (mode: VisualizerMode) => void;
+  audioSettings?: AudioPreferencesController;
 }
 
 const VISUALIZER_MODE_LABELS: Record<VisualizerMode, string> = {
@@ -46,6 +49,7 @@ export function PlayerDock({
   visualizer,
   visualizerMode = "hybrid",
   onSetVisualizerMode,
+  audioSettings,
 }: PlayerDockProps) {
   const [expanded, setExpanded] = useState(false);
   const expandedId = useId();
@@ -86,7 +90,9 @@ export function PlayerDock({
       }
       if (event.key !== "Tab") return;
       const focusable = Array.from(
-        sheetRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled)") ?? [],
+        sheetRef.current?.querySelectorAll<HTMLElement>(
+          "button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])",
+        ) ?? [],
       );
       const first = focusable[0];
       const last = focusable.at(-1);
@@ -157,6 +163,20 @@ export function PlayerDock({
           <h2 id="now-playing-heading">Playback signal</h2>
         </div>
         <div className="player-dock__heading-actions">
+          {audioSettings ? (
+            <button
+              className="icon-button"
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={expandedId}
+              aria-label="Open equalizer and stereo fusion"
+              title="Equalizer and stereo fusion"
+              disabled={!currentTrack}
+              onClick={() => setExpanded(true)}
+            >
+              <AppIcon name="equalizer" />
+            </button>
+          ) : null}
           <button
             className="player-dock__visualizer-toggle"
             type="button"
@@ -376,6 +396,9 @@ export function PlayerDock({
                 ))}
               </div>
             </fieldset>
+          ) : null}
+          {audioSettings ? (
+            <AudioTuningPanel settings={audioSettings} processing={player.audioProcessing} />
           ) : null}
           <div className="player-sheet__controls" aria-label="Expanded playback controls">
             <button

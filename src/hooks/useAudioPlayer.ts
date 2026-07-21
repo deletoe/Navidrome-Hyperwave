@@ -9,6 +9,11 @@ import {
 } from "react";
 
 import { createStableMediaUrlResolver } from "../lib/mediaUrls";
+import {
+  DEFAULT_AUDIO_PREFERENCES,
+  EQ_FREQUENCIES,
+  type AudioPreferences,
+} from "../lib/audioPreferences";
 import type { SubsonicClient } from "../lib/subsonic";
 import type { AudioVisualizerFrame } from "../lib/visualizerRenderer";
 import {
@@ -24,6 +29,7 @@ export interface UseAudioPlayerOptions {
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
   visualizerEnabled?: boolean;
+  audioPreferences?: AudioPreferences;
 }
 
 export type AudioVisualizerStatus = "off" | "waiting" | "ready" | "unavailable";
@@ -36,6 +42,15 @@ export interface AudioVisualizerController {
   readFrame(frameTime?: number): AudioVisualizerFrame | undefined;
 }
 
+export type AudioProcessingStatus = "off" | "waiting" | "ready" | "unavailable";
+
+export interface AudioProcessingController {
+  supported: boolean;
+  status: AudioProcessingStatus;
+  error?: string;
+  activate(): Promise<void>;
+}
+
 export interface AudioPlayerController {
   audioRef: RefObject<HTMLAudioElement | null>;
   isPlaying: boolean;
@@ -45,6 +60,7 @@ export interface AudioPlayerController {
   muted: boolean;
   error?: string;
   visualizer: AudioVisualizerController;
+  audioProcessing: AudioProcessingController;
   play(): Promise<void>;
   pause(): void;
   toggle(): Promise<void>;
@@ -64,6 +80,13 @@ interface AudioGraph {
   audio: HTMLAudioElement;
   context: AudioContext;
   source: MediaElementAudioSourceNode;
+  preamp?: GainNode;
+  filters?: BiquadFilterNode[];
+  stereoInput?: GainNode;
+  leftDirect?: GainNode;
+  rightDirect?: GainNode;
+  leftCross?: GainNode;
+  rightCross?: GainNode;
   analyser?: AnalyserNode;
   frequency?: Uint8Array<ArrayBuffer>;
   waveform?: Uint8Array<ArrayBuffer>;
@@ -81,6 +104,7 @@ export const PLAYBACK_FADE_IN_MS = 320;
 export const PLAYBACK_FADE_OUT_MS = 240;
 const PLAYBACK_FADE_STEP_MS = 16;
 const DEFAULT_VOLUME = 0.86;
+const AUDIO_PARAMETER_TIME_CONSTANT = 0.015;
 
 export function getScrobbleThreshold(duration: number): number {
   if (!Number.isFinite(duration) || duration <= 0) return 0;
@@ -93,6 +117,7 @@ export function useAudioPlayer({
   queueState,
   dispatch,
   visualizerEnabled = false,
+  audioPreferences = DEFAULT_AUDIO_PREFERENCES,
 }: UseAudioPlayerOptions): AudioPlayerController {
   const audioRef = useRef<HTMLAudioElement>(null);
   const loadedOccurrenceKey = useRef<number | string | undefined>(undefined);
@@ -125,8 +150,15 @@ export function useAudioPlayer({
     visualizerEnabled ? "waiting" : "off",
   );
   const [visualizerError, setVisualizerError] = useState<string>();
+  const [processingStatus, setProcessingStatus] = useState<AudioProcessingStatus>("off");
+  const [processingError, setProcessingError] = useState<string>();
   const currentOccurrenceKey = getCurrentOccurrenceKey(queueState);
   const AudioContextConstructor = getAudioContextConstructor();
+  const processingEnabled = audioPreferences.eqEnabled || audioPreferences.stereoBlend > 0;
+  const audioPreferencesRef = useRef(audioPreferences);
+  const processingEnabledRef = useRef(processingEnabled);
+  audioPreferencesRef.current = audioPreferences;
+  processingEnabledRef.current = processingEnabled;
 
   useEffect(() => {
     if (!visualizerEnabled) {
@@ -143,6 +175,24 @@ export function useAudioPlayer({
         : "waiting",
     );
   }, [visualizerEnabled]);
+
+  useEffect(() => {
+    const graph = audioGraph.current;
+    if (graph) applyAudioPreferences(graph, audioPreferences);
+    if (!processingEnabled) {
+      setProcessingStatus("off");
+    } else if (!AudioContextConstructor) {
+      setProcessingStatus("unavailable");
+      setProcessingError("Web Audio is not available in this browser");
+    } else if (graph?.preamp && String(graph.context.state) === "running") {
+      setProcessingStatus("ready");
+      setProcessingError(undefined);
+    } else if (graph && !graph.preamp) {
+      setProcessingStatus("unavailable");
+    } else {
+      setProcessingStatus("waiting");
+    }
+  }, [AudioContextConstructor, audioPreferences, processingEnabled]);
 
   const mediaUrls = useMemo(
     () =>
@@ -404,10 +454,10 @@ export function useAudioPlayer({
     if (!nativePlaying.current) applyEffectiveVolume(audio, 0);
     setError(undefined);
     try {
-      if (visualizerEnabled) {
+      if (visualizerEnabled || processingEnabled) {
         // Web Audio is an enhancement. Some browsers leave context.resume()
         // pending until a later gesture, so playback must never wait for it.
-        void activateVisualizer().catch(() => undefined);
+        void activateAudioGraph().catch(() => undefined);
       } else if (audioGraph.current?.context.state === "suspended") {
         void audioGraph.current.context.resume().catch(() => undefined);
       }
@@ -636,15 +686,20 @@ export function useAudioPlayer({
     setError(messages[mediaError?.code ?? 0] ?? "The track could not be played");
   }
 
-  async function activateVisualizer(): Promise<void> {
+  async function activateAudioGraph(): Promise<void> {
     const audio = audioRef.current;
     if (!audio) {
       setVisualizerStatus("waiting");
+      if (processingEnabledRef.current) setProcessingStatus("waiting");
       return;
     }
     if (!AudioContextConstructor) {
       setVisualizerStatus("unavailable");
       setVisualizerError("Web Audio is not available in this browser");
+      if (processingEnabledRef.current) {
+        setProcessingStatus("unavailable");
+        setProcessingError("Web Audio is not available in this browser");
+      }
       return;
     }
     const existing = audioGraph.current;
@@ -654,16 +709,23 @@ export function useAudioPlayer({
         setVisualizerError("The audio stream could not be connected to Web Audio");
         return;
       }
+      applyAudioPreferences(existing, audioPreferencesRef.current);
       const contextState = await resumeAudioContext(existing.context);
       if (contextState === "running") {
         setVisualizerStatus("ready");
         setVisualizerError(undefined);
+        if (processingEnabledRef.current) {
+          setProcessingStatus(existing.preamp ? "ready" : "unavailable");
+          setProcessingError(existing.preamp ? undefined : "Audio tuning could not be connected");
+        }
       } else if (contextState === "closed") {
         setVisualizerStatus("unavailable");
         setVisualizerError("The browser closed the live audio analyser");
+        if (processingEnabledRef.current) setProcessingStatus("unavailable");
       } else {
         setVisualizerStatus("waiting");
         setVisualizerError(undefined);
+        if (processingEnabledRef.current) setProcessingStatus("waiting");
       }
       return;
     }
@@ -698,6 +760,7 @@ export function useAudioPlayer({
         void context.close().catch(() => undefined);
         setVisualizerStatus("waiting");
         setVisualizerError(undefined);
+        if (processingEnabledRef.current) setProcessingStatus("waiting");
         return;
       }
       if (audioRef.current !== audio) {
@@ -711,8 +774,64 @@ export function useAudioPlayer({
       const waveform: Uint8Array<ArrayBuffer> = new Uint8Array(analyser.fftSize);
       source = context.createMediaElementSource(audio);
       try {
-        source.connect(analyser);
+        const activeContext = context;
+        const preamp = activeContext.createGain();
+        const filters = EQ_FREQUENCIES.map((frequency) => {
+          const filter = activeContext.createBiquadFilter();
+          filter.type = "peaking";
+          filter.frequency.value = Math.min(frequency, activeContext.sampleRate * 0.45);
+          filter.Q.value = 1.4;
+          return filter;
+        });
+        const stereoInput = activeContext.createGain();
+        stereoInput.channelCount = 2;
+        stereoInput.channelCountMode = "explicit";
+        stereoInput.channelInterpretation = "speakers";
+        const splitter = activeContext.createChannelSplitter(2);
+        const leftDirect = activeContext.createGain();
+        const rightDirect = activeContext.createGain();
+        const leftCross = activeContext.createGain();
+        const rightCross = activeContext.createGain();
+        const merger = activeContext.createChannelMerger(2);
+
+        source.connect(preamp);
+        let output: AudioNode = preamp;
+        for (const filter of filters) {
+          output.connect(filter);
+          output = filter;
+        }
+        output.connect(stereoInput);
+        stereoInput.connect(splitter);
+        splitter.connect(leftDirect, 0);
+        splitter.connect(leftCross, 0);
+        splitter.connect(rightDirect, 1);
+        splitter.connect(rightCross, 1);
+        leftDirect.connect(merger, 0, 0);
+        rightCross.connect(merger, 0, 0);
+        rightDirect.connect(merger, 0, 1);
+        leftCross.connect(merger, 0, 1);
+        merger.connect(analyser);
         analyser.connect(context.destination);
+
+        const graph: AudioGraph = {
+          audio,
+          context,
+          source,
+          preamp,
+          filters,
+          stereoInput,
+          leftDirect,
+          rightDirect,
+          leftCross,
+          rightCross,
+          analyser,
+          frequency,
+          waveform,
+        };
+        applyAudioPreferences(graph, audioPreferencesRef.current, true);
+        audioGraph.current = graph;
+        context.onstatechange = () => publishAudioGraphStatus(graph);
+        publishAudioGraphStatus(graph);
       } catch {
         // Once a media element has been claimed by Web Audio it must keep a live
         // route to the destination, even when visual analysis cannot be attached.
@@ -729,25 +848,22 @@ export function useAudioPlayer({
         audioGraph.current = { audio, context, source };
         setVisualizerStatus("unavailable");
         setVisualizerError("The audio stream could not be connected to Web Audio");
+        if (processingEnabledRef.current) {
+          setProcessingStatus("unavailable");
+          setProcessingError("Audio tuning could not be connected");
+        }
         return;
       }
-      const graph: AudioGraph = {
-        audio,
-        context,
-        source,
-        analyser,
-        frequency,
-        waveform,
-      };
-      audioGraph.current = graph;
-      context.onstatechange = () => publishAudioGraphStatus(graph);
-      publishAudioGraphStatus(graph);
     } catch {
       // Closing is safe only before createMediaElementSource has rerouted the
       // element. A claimed source must stay connected to a running destination.
       if (context && !source) void context.close().catch(() => undefined);
       setVisualizerStatus("unavailable");
       setVisualizerError("The audio stream could not be connected to Web Audio");
+      if (processingEnabledRef.current) {
+        setProcessingStatus("unavailable");
+        setProcessingError("Audio tuning could not be connected");
+      }
     }
   }
 
@@ -785,12 +901,18 @@ export function useAudioPlayer({
     } else if (contextState === "running") {
       setVisualizerStatus("ready");
       setVisualizerError(undefined);
+      if (processingEnabledRef.current) {
+        setProcessingStatus(graph.preamp ? "ready" : "unavailable");
+        setProcessingError(graph.preamp ? undefined : "Audio tuning could not be connected");
+      }
     } else if (contextState === "closed") {
       setVisualizerStatus("unavailable");
       setVisualizerError("The browser closed the live audio analyser");
+      if (processingEnabledRef.current) setProcessingStatus("unavailable");
     } else {
       setVisualizerStatus("waiting");
       setVisualizerError(undefined);
+      if (processingEnabledRef.current) setProcessingStatus("waiting");
     }
   }
 
@@ -818,8 +940,14 @@ export function useAudioPlayer({
       supported: Boolean(AudioContextConstructor),
       status: visualizerEnabled ? visualizerStatus : "off",
       error: visualizerError,
-      activate: activateVisualizer,
+      activate: activateAudioGraph,
       readFrame: readVisualizerFrame,
+    },
+    audioProcessing: {
+      supported: Boolean(AudioContextConstructor),
+      status: processingEnabled ? processingStatus : "off",
+      error: processingError,
+      activate: activateAudioGraph,
     },
     play,
     pause,
@@ -835,6 +963,67 @@ export function useAudioPlayer({
     handleEnded,
     handleError,
   };
+}
+
+function applyAudioPreferences(
+  graph: AudioGraph,
+  preferences: AudioPreferences,
+  immediate = false,
+): void {
+  if (
+    !graph.preamp ||
+    !graph.filters ||
+    !graph.leftDirect ||
+    !graph.rightDirect ||
+    !graph.leftCross ||
+    !graph.rightCross
+  ) return;
+
+  const maximumBoost = preferences.eqEnabled
+    ? Math.max(0, ...preferences.bandGains)
+    : 0;
+  const effectivePreampDb = preferences.eqEnabled
+    ? preferences.preampDb - maximumBoost
+    : 0;
+  setAudioParameter(
+    graph.preamp.gain,
+    Math.pow(10, effectivePreampDb / 20),
+    graph.context,
+    immediate,
+  );
+  graph.filters.forEach((filter, index) => {
+    setAudioParameter(
+      filter.gain,
+      preferences.eqEnabled ? preferences.bandGains[index] ?? 0 : 0,
+      graph.context,
+      immediate,
+    );
+  });
+
+  const mix = Math.min(1, Math.max(0, preferences.stereoBlend / 100));
+  const direct = 1 - mix / 2;
+  const cross = mix / 2;
+  setAudioParameter(graph.leftDirect.gain, direct, graph.context, immediate);
+  setAudioParameter(graph.rightDirect.gain, direct, graph.context, immediate);
+  setAudioParameter(graph.leftCross.gain, cross, graph.context, immediate);
+  setAudioParameter(graph.rightCross.gain, cross, graph.context, immediate);
+}
+
+function setAudioParameter(
+  parameter: AudioParam,
+  value: number,
+  context: AudioContext,
+  immediate: boolean,
+): void {
+  if (immediate) {
+    parameter.value = value;
+    return;
+  }
+  try {
+    parameter.setTargetAtTime(value, context.currentTime, AUDIO_PARAMETER_TIME_CONSTANT);
+  } catch {
+    parameter.value = value;
+  }
 }
 
 async function resumeAudioContext(context: AudioContext): Promise<string> {

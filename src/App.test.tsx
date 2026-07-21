@@ -56,6 +56,12 @@ function playerController(): AudioPlayerController {
       activate: vi.fn(async () => undefined),
       readFrame: vi.fn(() => undefined),
     },
+    audioProcessing: {
+      supported: true,
+      status: "off",
+      error: undefined,
+      activate: vi.fn(async () => undefined),
+    },
     play: vi.fn(async () => undefined),
     pause: vi.fn(),
     toggle: vi.fn(async () => undefined),
