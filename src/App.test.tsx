@@ -13,6 +13,7 @@ import { TrackList } from "./components/TrackList";
 import * as audioPlayerModule from "./hooks/useAudioPlayer";
 import type { AudioPlayerController } from "./hooks/useAudioPlayer";
 import type { AudioPreferencesController } from "./hooks/useAudioPreferences";
+import type { TrackLyricsController } from "./hooks/useTrackLyrics";
 import * as navidromeModule from "./hooks/useNavidrome";
 import type { NavidromeController } from "./hooks/useNavidrome";
 import { DEFAULT_AUDIO_PREFERENCES } from "./lib/audioPreferences";
@@ -92,6 +93,28 @@ function audioPreferencesController(): AudioPreferencesController {
     applyPreset: vi.fn(),
     setStereoBlend: vi.fn(),
     reset: vi.fn(),
+  };
+}
+
+function lyricsController(
+  overrides: Partial<TrackLyricsController> = {},
+): TrackLyricsController {
+  const entry = {
+    synced: true,
+    line: [
+      { start: 1_000, value: "Night turns blue" },
+      { start: 12_000, value: "Follow the signal" },
+    ],
+  };
+  return {
+    status: "ready",
+    entries: [entry],
+    selected: entry,
+    selectedIndex: 0,
+    load: vi.fn(async () => undefined),
+    retry: vi.fn(async () => undefined),
+    select: vi.fn(),
+    ...overrides,
   };
 }
 
@@ -405,6 +428,38 @@ describe("accessible collection actions", () => {
 });
 
 describe("compact player interactions", () => {
+  it("switches the expanded cover into a synchronized lyrics stage without replacing playback", async () => {
+    const user = userEvent.setup();
+    const player = playerController();
+    const lyrics = lyricsController();
+
+    render(
+      <PlayerDock
+        currentTrack={track}
+        player={player}
+        lyrics={lyrics}
+        coverUrl={() => "/cover.jpg"}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        onToggleQueue={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Open now playing" }));
+    await user.click(screen.getByRole("button", { name: "Show lyrics for Blue Hour" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Now playing" });
+    expect(dialog).toHaveClass("player-sheet--lyrics");
+    expect(lyrics.load).toHaveBeenCalledOnce();
+    expect(within(dialog).getByRole("button", { name: /Seek to 0:12/ })).toHaveAttribute("aria-current", "true");
+
+    await user.click(within(dialog).getByRole("button", { name: /Seek to 0:01/ }));
+    expect(player.seek).toHaveBeenCalledWith(1);
+
+    await user.click(within(dialog).getByRole("button", { name: "Show album artwork for Blue Hour" }));
+    expect(within(dialog).getByRole("button", { name: "Show lyrics for Blue Hour" })).toBeInTheDocument();
+  });
+
   it("exposes playback and track state on the stable player dock", () => {
     const playing = playerController();
     playing.isPlaying = true;

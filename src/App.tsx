@@ -21,6 +21,7 @@ import { useAudioPlayer } from "./hooks/useAudioPlayer";
 import { useAudioPreferences } from "./hooks/useAudioPreferences";
 import { useCoverPalette } from "./hooks/useCoverPalette";
 import { useNavidrome } from "./hooks/useNavidrome";
+import { useTrackLyrics } from "./hooks/useTrackLyrics";
 import { useVisualPreferences } from "./hooks/useVisualPreferences";
 import {
   getThemeById,
@@ -80,6 +81,7 @@ export default function App() {
     visualizerEnabled,
     audioPreferences: audioPreferences.preferences,
   });
+  const lyrics = useTrackLyrics(navidrome.client, currentTrack?.id);
   const [view, setView] = useState<AppView>("home");
   const [previewThemeId, setPreviewThemeId] = useState<ThemePreviewId>("auto");
   const [artistFilter, setArtistFilter] = useState("");
@@ -559,6 +561,7 @@ export default function App() {
             visualizerMode={visualPreferences.preferences.visualizer}
             onSetVisualizerMode={setVisualizerMode}
             audioSettings={audioPreferences}
+            lyrics={lyrics}
             visualizer={(
               <AudioVisualizer
                 className="player-dock__visualizer-canvas"

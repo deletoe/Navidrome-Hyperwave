@@ -1795,6 +1795,235 @@
   }
 }
 
+/* Lyrics is a second visual stage, not a reskinned text list. Each personality
+   gets its own composition while sharing the same playback timeline. */
+[data-theme="prism"] .player-sheet--lyrics {
+  background:
+    conic-gradient(from 215deg at 82% 18%, color-mix(in srgb, var(--theme-secondary) 24%, transparent), transparent 20% 68%, color-mix(in srgb, var(--theme-primary) 18%, transparent)),
+    color-mix(in srgb, var(--theme-bg) 94%, transparent);
+}
+
+[data-theme="prism"] .lyrics-player__stage {
+  transform: skewX(-2deg);
+}
+
+[data-theme="prism"] .lyrics-player__line:nth-child(3n + 1) { padding-left: 6%; }
+[data-theme="prism"] .lyrics-player__line:nth-child(3n + 2) { padding-left: 16%; }
+[data-theme="prism"] .lyrics-player__line:nth-child(3n) { padding-left: 2%; }
+
+[data-theme="prism"] .lyrics-player__line[data-active="true"] {
+  color: #fff;
+  text-shadow:
+    -0.08em 0 color-mix(in srgb, var(--theme-primary) 88%, transparent),
+    0.08em 0 color-mix(in srgb, var(--theme-secondary) 88%, transparent),
+    0 0 1.6rem var(--theme-primary);
+  transform: translateX(1.2rem) scale(1.07) skewX(2deg);
+}
+
+[data-theme="cyber"] .player-sheet--lyrics {
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.2) 3px 4px),
+    linear-gradient(90deg, color-mix(in srgb, var(--theme-primary) 8%, transparent), transparent 34%),
+    var(--theme-bg);
+}
+
+[data-theme="cyber"] .lyrics-player__header {
+  border-bottom-style: dashed;
+  text-transform: uppercase;
+}
+
+[data-theme="cyber"] .lyrics-player__lines {
+  counter-reset: lyric-line;
+  border-left: 2px solid color-mix(in srgb, var(--theme-primary) 54%, transparent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+[data-theme="cyber"] .lyrics-player__line {
+  counter-increment: lyric-line;
+  grid-template-columns: 3.25rem minmax(0, 1fr) 3rem;
+  border-radius: 0;
+  text-transform: uppercase;
+}
+
+[data-theme="cyber"] .lyrics-player__line::before {
+  content: "L" counter(lyric-line, decimal-leading-zero);
+  color: var(--theme-muted);
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+}
+
+[data-theme="cyber"] .lyrics-player__line[data-active="true"] {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--theme-primary) 24%, transparent), transparent);
+  color: var(--theme-primary);
+  box-shadow: -0.35rem 0 0 var(--theme-primary), 0 0 2rem color-mix(in srgb, var(--theme-primary) 20%, transparent);
+  text-shadow: 0 0 0.8rem var(--theme-primary);
+  transform: translateX(0.8rem);
+}
+
+[data-theme="bloom"] .player-sheet--lyrics {
+  background:
+    radial-gradient(circle at 14% 78%, color-mix(in srgb, var(--theme-primary) 25%, transparent), transparent 30%),
+    radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--theme-secondary) 26%, transparent), transparent 34%),
+    color-mix(in srgb, var(--theme-bg) 92%, white 8%);
+}
+
+[data-theme="bloom"] .lyrics-player__lines {
+  max-width: 60rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+[data-theme="bloom"] .lyrics-player__line {
+  justify-items: center;
+  border-radius: 999px;
+  font-weight: 680;
+}
+
+[data-theme="bloom"] .lyrics-player__line[data-active="true"] {
+  background: color-mix(in srgb, var(--theme-surface-strong) 64%, transparent);
+  color: color-mix(in srgb, var(--theme-primary) 70%, white 30%);
+  box-shadow: 0 1rem 3rem color-mix(in srgb, var(--theme-primary) 22%, transparent);
+  text-shadow: 0 0.25rem 1.1rem color-mix(in srgb, var(--theme-secondary) 32%, transparent);
+  transform: scale(1.1) translateY(-0.12rem);
+}
+
+[data-theme="pixel"] .player-sheet--lyrics {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--theme-border) 20%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--theme-border) 20%, transparent) 1px, transparent 1px),
+    var(--theme-bg);
+  background-size: 24px 24px;
+}
+
+[data-theme="pixel"] .lyrics-player__header,
+[data-theme="pixel"] .lyrics-player__stage,
+[data-theme="pixel"] .lyrics-player__cover-toggle,
+[data-theme="pixel"] .lyrics-player__line {
+  border-radius: 0;
+}
+
+[data-theme="pixel"] .lyrics-player__line {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: clamp(1.35rem, 3.8vw, 3.25rem);
+  text-transform: uppercase;
+  transition: none;
+}
+
+[data-theme="pixel"] .lyrics-player__line[data-active="true"] {
+  background: var(--theme-primary);
+  color: var(--theme-bg);
+  box-shadow: 8px 8px 0 var(--theme-secondary);
+  text-shadow: 2px 2px 0 color-mix(in srgb, white 42%, transparent);
+  transform: translate(-4px, -4px);
+}
+
+[data-theme="rock"] .player-sheet--lyrics {
+  background:
+    linear-gradient(115deg, transparent 0 57%, color-mix(in srgb, var(--theme-primary) 14%, transparent) 57% 59%, transparent 59%),
+    radial-gradient(ellipse at 45% 120%, color-mix(in srgb, var(--theme-secondary) 18%, transparent), transparent 62%),
+    #100d0d;
+}
+
+[data-theme="rock"] .lyrics-player__header {
+  transform: rotate(-0.7deg);
+}
+
+[data-theme="rock"] .lyrics-player__line {
+  font-style: italic;
+  font-weight: 950;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+[data-theme="rock"] .lyrics-player__line:nth-child(even) { transform: rotate(0.4deg); }
+[data-theme="rock"] .lyrics-player__line:nth-child(odd) { transform: rotate(-0.45deg); }
+
+[data-theme="rock"] .lyrics-player__line[data-active="true"] {
+  background: linear-gradient(100deg, var(--theme-primary), color-mix(in srgb, var(--theme-secondary) 68%, var(--theme-primary)));
+  color: #0d0908;
+  box-shadow: 0.55rem 0.55rem 0 #fff2;
+  text-shadow: none;
+  transform: rotate(-1.2deg) scale(1.08);
+}
+
+[data-theme="cinematic"] .player-sheet--lyrics {
+  background:
+    linear-gradient(#000 0 7%, transparent 7% 93%, #000 93%),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--theme-secondary) 12%, transparent), transparent 65%),
+    #080808;
+}
+
+[data-theme="cinematic"] .lyrics-player__header {
+  justify-items: center;
+  text-align: center;
+}
+
+[data-theme="cinematic"] .lyrics-player__lines {
+  max-width: 68rem;
+  margin-inline: auto;
+  text-align: center;
+}
+
+[data-theme="cinematic"] .lyrics-player__line {
+  justify-items: center;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 500;
+  letter-spacing: 0.025em;
+}
+
+[data-theme="cinematic"] .lyrics-player__line[data-active="true"] {
+  color: #f8edcf;
+  letter-spacing: 0.055em;
+  text-shadow: 0 0.5rem 2.5rem rgb(245 209 147 / 0.42);
+  transform: scale(1.12);
+}
+
+[data-theme="lounge"] .player-sheet--lyrics {
+  background:
+    radial-gradient(circle at 84% 40%, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 32%),
+    linear-gradient(102deg, color-mix(in srgb, var(--theme-surface-strong) 82%, transparent) 0 46%, transparent 46%),
+    var(--theme-bg);
+}
+
+[data-theme="lounge"] .lyrics-player__lines {
+  width: min(72%, 54rem);
+  margin-left: auto;
+  text-align: right;
+}
+
+[data-theme="lounge"] .lyrics-player__line {
+  grid-template-columns: minmax(0, 1fr) 3rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+[data-theme="lounge"] .lyrics-player__line[data-active="true"] {
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--theme-primary) 13%, transparent));
+  color: color-mix(in srgb, var(--theme-primary) 52%, #fff4d8 48%);
+  text-shadow: 0 0.3rem 1.4rem color-mix(in srgb, var(--theme-primary) 28%, transparent);
+  transform: translateX(-1.4rem) scale(1.06);
+}
+
+@media (max-width: 767px) {
+  [data-theme="cyber"] .lyrics-player__line {
+    grid-template-columns: 2.5rem minmax(0, 1fr) 2.6rem;
+  }
+
+  [data-theme="prism"] .lyrics-player__line:nth-child(n),
+  [data-theme="lounge"] .lyrics-player__lines {
+    width: auto;
+    padding-left: 0.35rem;
+    text-align: left;
+  }
+
+  [data-theme="rock"] .lyrics-player__line[data-active="true"],
+  [data-theme="cinematic"] .lyrics-player__line[data-active="true"],
+  [data-theme="bloom"] .lyrics-player__line[data-active="true"] {
+    transform: scale(1.035);
+  }
+}
+
 @keyframes theme-burst-shell {
   0% { opacity: 0; }
   8%, 58% { opacity: 1; }

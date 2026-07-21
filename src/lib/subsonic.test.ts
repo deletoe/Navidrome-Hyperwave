@@ -218,6 +218,58 @@ describe("Subsonic endpoint client", () => {
     });
   });
 
+  it("normalizes synchronized and plain structured lyrics by song id", async () => {
+    const fetcher = vi.fn(async (_input: string, _init?: RequestInit) => response({
+      lyricsList: {
+        structuredLyrics: [
+          {
+            displayArtist: " Signal Club ",
+            displayTitle: " Blue Hour ",
+            lang: "eng",
+            offset: -120.4,
+            synced: true,
+            line: [
+              { start: 1000.4, value: " First line " },
+              { start: 2500, value: "Second line" },
+              { start: Number.NaN, value: "Fallback line" },
+            ],
+          },
+          {
+            lang: "xxx",
+            synced: false,
+            line: { value: "Plain lyric" },
+          },
+          { synced: true, line: [{ start: 0, value: "   " }] },
+        ],
+      },
+    }));
+    const client = createSubsonicClient({
+      serverUrl: "http://music.test",
+      auth,
+      fetcher,
+      saltFactory: () => "fixed",
+    });
+
+    await expect(client.getLyricsBySongId("song 1")).resolves.toEqual([
+      {
+        displayArtist: "Signal Club",
+        displayTitle: "Blue Hour",
+        lang: "eng",
+        offset: -120,
+        synced: true,
+        line: [
+          { start: 1000, value: "First line" },
+          { start: 2500, value: "Second line" },
+          { value: "Fallback line" },
+        ],
+      },
+      { synced: false, line: [{ value: "Plain lyric" }] },
+    ]);
+    const url = new URL(String(fetcher.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/rest/getLyricsBySongId.view");
+    expect(url.searchParams.get("id")).toBe("song 1");
+  });
+
   it("passes an abort signal through JSON detail requests", async () => {
     const fetcher = vi.fn((_input: string, init?: RequestInit) =>
       new Promise<Response>((_resolve, reject) => {

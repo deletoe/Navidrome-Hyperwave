@@ -40,6 +40,20 @@ export interface Track {
   contentType?: string;
 }
 
+export interface StructuredLyricsLine {
+  start?: number;
+  value: string;
+}
+
+export interface StructuredLyrics {
+  displayArtist?: string;
+  displayTitle?: string;
+  lang?: string;
+  offset?: number;
+  synced: boolean;
+  line: StructuredLyricsLine[];
+}
+
 export interface Album {
   id: string;
   name: string;

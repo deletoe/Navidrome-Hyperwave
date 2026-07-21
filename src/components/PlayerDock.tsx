@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
 import type { AudioPreferencesController } from "../hooks/useAudioPreferences";
+import type { TrackLyricsController } from "../hooks/useTrackLyrics";
 import { formatDuration } from "../lib/format";
 import { VISUALIZER_MODES, type VisualizerMode } from "../lib/visualPreferences";
 import type { Artist, Track } from "../types";
@@ -10,6 +11,7 @@ import { AppIcon } from "./AppIcon";
 import { AudioTuningPanel } from "./AudioTuningPanel";
 import { ArtistLinks } from "./ArtistLinks";
 import { Artwork } from "./Artwork";
+import { LyricsPlayer } from "./LyricsPlayer";
 
 export interface PlayerDockProps {
   currentTrack?: Track;
@@ -25,6 +27,7 @@ export interface PlayerDockProps {
   visualizerMode?: VisualizerMode;
   onSetVisualizerMode?: (mode: VisualizerMode) => void;
   audioSettings?: AudioPreferencesController;
+  lyrics?: TrackLyricsController;
 }
 
 const VISUALIZER_MODE_LABELS: Record<VisualizerMode, string> = {
@@ -51,9 +54,11 @@ export function PlayerDock({
   visualizerMode = "hybrid",
   onSetVisualizerMode,
   audioSettings,
+  lyrics,
 }: PlayerDockProps) {
   const [expanded, setExpanded] = useState(false);
   const [tuningOpen, setTuningOpen] = useState(false);
+  const [expandedView, setExpandedView] = useState<"artwork" | "lyrics">("artwork");
   const expandedId = useId();
   const tuningId = useId();
   const positionId = useId();
@@ -184,6 +189,11 @@ export function PlayerDock({
     }
   }, [currentTrack]);
 
+  useEffect(() => {
+    if (!expanded || expandedView !== "lyrics" || !lyrics) return;
+    void lyrics.load();
+  }, [currentTrack?.id, expanded, expandedView, lyrics?.load]);
+
   const title = currentTrack?.title ?? "Nothing playing";
   const artist = currentTrack?.displayArtist || currentTrack?.artist || "Choose a track to begin";
   const sheetPortalTarget = typeof document === "undefined"
@@ -198,6 +208,10 @@ export function PlayerDock({
   function openArtistFromSheet(artist: Artist): void {
     closeExpanded(false);
     onOpenArtist?.(artist);
+  }
+
+  function showLyrics(): void {
+    setExpandedView("lyrics");
   }
 
   return (
@@ -390,7 +404,7 @@ export function PlayerDock({
       {expanded && sheetPortalTarget ? createPortal((
         <div
           ref={sheetRef}
-          className="player-sheet"
+          className={`player-sheet${expandedView === "lyrics" ? " player-sheet--lyrics" : ""}`}
           id={expandedId}
           role="dialog"
           aria-modal="true"
@@ -406,56 +420,88 @@ export function PlayerDock({
           >
             <AppIcon name="close" />
           </button>
-          <Artwork
-            className="player-sheet__artwork"
-            src={coverUrl(currentTrack?.coverArt, 960)}
-            alt={`${title} cover`}
-            eager
-          />
-          <p className="eyebrow">Full signal</p>
-          <h2>{title}</h2>
-          {currentTrack && onOpenArtist ? (
-            <ArtistLinks
-              className="player-sheet__artist-links"
-              entity={currentTrack}
-              onOpenArtist={openArtistFromSheet}
+          {expandedView === "lyrics" && lyrics && currentTrack ? (
+            <LyricsPlayer
+              track={currentTrack}
+              artworkUrl={coverUrl(currentTrack.coverArt, 512)}
+              lyrics={lyrics}
+              progress={player.progress}
+              playing={player.isPlaying}
+              onShowArtwork={() => setExpandedView("artwork")}
+              onSeek={player.seek}
             />
           ) : (
-            <p>{artist}</p>
+            <>
+              {lyrics ? (
+                <button
+                  className="player-sheet__artwork-toggle"
+                  type="button"
+                  aria-label={`Show lyrics for ${title}`}
+                  title="Show lyrics"
+                  onClick={showLyrics}
+                >
+                  <Artwork
+                    className="player-sheet__artwork"
+                    src={coverUrl(currentTrack?.coverArt, 960)}
+                    alt={`${title} cover`}
+                    eager
+                  />
+                  <span><AppIcon name="lyrics" /> Lyrics</span>
+                </button>
+              ) : (
+                <Artwork
+                  className="player-sheet__artwork"
+                  src={coverUrl(currentTrack?.coverArt, 960)}
+                  alt={`${title} cover`}
+                  eager
+                />
+              )}
+              <p className="eyebrow">Full signal</p>
+              <h2>{title}</h2>
+              {currentTrack && onOpenArtist ? (
+                <ArtistLinks
+                  className="player-sheet__artist-links"
+                  entity={currentTrack}
+                  onOpenArtist={openArtistFromSheet}
+                />
+              ) : (
+                <p>{artist}</p>
+              )}
+              <p>{currentTrack?.album || "Unknown album"}</p>
+              <button
+                className={`player-sheet__favorite icon-button${isStarred ? " is-starred" : ""}`}
+                type="button"
+                aria-pressed={isStarred}
+                aria-label={`${isStarred ? "Unstar" : "Star"} ${title}`}
+                title={`${isStarred ? "Unstar" : "Star"} ${title}`}
+                disabled={!currentTrack || !onToggleStar}
+                onClick={onToggleStar}
+              >
+                <AppIcon name="favorite" filled={isStarred} />
+              </button>
+              {onSetVisualizerMode ? (
+                <fieldset className="player-sheet__visualizer">
+                  <legend>Live visualizer</legend>
+                  <p role="status">{visualizerSignal}</p>
+                  <div>
+                    {VISUALIZER_MODES.map((mode) => (
+                      <label key={mode}>
+                        <input
+                          type="radio"
+                          name={visualizerName}
+                          value={mode}
+                          checked={visualizerMode === mode}
+                          disabled={!player.visualizer.supported && mode !== "off"}
+                          onChange={() => onSetVisualizerMode(mode)}
+                        />
+                        <span>{VISUALIZER_MODE_LABELS[mode]}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              ) : null}
+            </>
           )}
-          <p>{currentTrack?.album || "Unknown album"}</p>
-          <button
-            className={`player-sheet__favorite icon-button${isStarred ? " is-starred" : ""}`}
-            type="button"
-            aria-pressed={isStarred}
-            aria-label={`${isStarred ? "Unstar" : "Star"} ${title}`}
-            title={`${isStarred ? "Unstar" : "Star"} ${title}`}
-            disabled={!currentTrack || !onToggleStar}
-            onClick={onToggleStar}
-          >
-            <AppIcon name="favorite" filled={isStarred} />
-          </button>
-          {onSetVisualizerMode ? (
-            <fieldset className="player-sheet__visualizer">
-              <legend>Live visualizer</legend>
-              <p role="status">{visualizerSignal}</p>
-              <div>
-                {VISUALIZER_MODES.map((mode) => (
-                  <label key={mode}>
-                    <input
-                      type="radio"
-                      name={visualizerName}
-                      value={mode}
-                      checked={visualizerMode === mode}
-                      disabled={!player.visualizer.supported && mode !== "off"}
-                      onChange={() => onSetVisualizerMode(mode)}
-                    />
-                    <span>{VISUALIZER_MODE_LABELS[mode]}</span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          ) : null}
           {audioSettings ? (
             <button
               className="player-sheet__audio-settings button-with-icon"

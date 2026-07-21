@@ -9,6 +9,7 @@ import type {
   Genre,
   SearchResult,
   ServerInfo,
+  StructuredLyrics,
   StarredResult,
   Track,
 } from "../types";
@@ -136,6 +137,7 @@ export interface SubsonicClient {
     offset?: number,
     signal?: AbortSignal,
   ): Promise<Track[]>;
+  getLyricsBySongId(id: string, signal?: AbortSignal): Promise<StructuredLyrics[]>;
   search3(query: string): Promise<SearchResult>;
   getStarred2(): Promise<StarredResult>;
   star(id: string): Promise<void>;
@@ -248,6 +250,12 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
       }, signal);
       return asArray(root.songsByGenre?.song);
     },
+    async getLyricsBySongId(id, signal) {
+      const root = await request<{
+        lyricsList?: { structuredLyrics?: unknown };
+      }>("getLyricsBySongId", { id }, signal);
+      return normalizeStructuredLyrics(root.lyricsList?.structuredLyrics);
+    },
     async search3(query) {
       const root = await request<{
         searchResult3?: {
@@ -325,4 +333,51 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
       return endpointUrl(options.serverUrl, "stream", options.auth, { id, maxBitRate }, saltFactory);
     },
   };
+}
+
+function normalizeStructuredLyrics(value: unknown): StructuredLyrics[] {
+  const entries = Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+  return entries.flatMap((candidate) => {
+    if (!isUnknownRecord(candidate)) return [];
+    const rawLines = Array.isArray(candidate.line)
+      ? candidate.line
+      : candidate.line === undefined || candidate.line === null
+        ? []
+        : [candidate.line];
+    const line = rawLines.flatMap((rawLine) => {
+      if (!isUnknownRecord(rawLine) || typeof rawLine.value !== "string") return [];
+      const value = rawLine.value.replace(/\r\n?/g, "\n").trim();
+      if (!value) return [];
+      const start = typeof rawLine.start === "number" && Number.isFinite(rawLine.start)
+        ? Math.max(0, Math.round(rawLine.start))
+        : undefined;
+      return [{ ...(start === undefined ? {} : { start }), value }];
+    });
+    if (line.length === 0) return [];
+    const displayArtist = typeof candidate.displayArtist === "string"
+      ? candidate.displayArtist.trim()
+      : undefined;
+    const displayTitle = typeof candidate.displayTitle === "string"
+      ? candidate.displayTitle.trim()
+      : undefined;
+    const lang = typeof candidate.lang === "string" && !["", "xxx", "und"].includes(candidate.lang.trim().toLowerCase())
+      ? candidate.lang.trim()
+      : undefined;
+    const offset = typeof candidate.offset === "number" && Number.isFinite(candidate.offset)
+      ? Math.round(candidate.offset)
+      : undefined;
+    const synced = candidate.synced === true && line.some((entry) => entry.start !== undefined);
+    return [{
+      ...(displayArtist ? { displayArtist } : {}),
+      ...(displayTitle ? { displayTitle } : {}),
+      ...(lang ? { lang } : {}),
+      ...(offset === undefined ? {} : { offset }),
+      synced,
+      line,
+    }];
+  });
+}
+
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
