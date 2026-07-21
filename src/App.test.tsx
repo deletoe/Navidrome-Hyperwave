@@ -428,36 +428,40 @@ describe("accessible collection actions", () => {
 });
 
 describe("compact player interactions", () => {
-  it("switches the expanded cover into a synchronized lyrics stage without replacing playback", async () => {
+  it("uses the compact track surface as the return path to the player page", async () => {
     const user = userEvent.setup();
-    const player = playerController();
-    const lyrics = lyricsController();
-
-    render(
+    const onOpenNowPlaying = vi.fn();
+    const { container, rerender } = render(
       <PlayerDock
         currentTrack={track}
-        player={player}
-        lyrics={lyrics}
-        coverUrl={() => "/cover.jpg"}
+        player={playerController()}
+        coverUrl={() => ""}
         queuePanelId="playback-queue"
         queueOpen={false}
         onToggleQueue={vi.fn()}
+        onOpenNowPlaying={onOpenNowPlaying}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Open now playing" }));
-    await user.click(screen.getByRole("button", { name: "Show lyrics for Blue Hour" }));
+    expect(screen.queryByRole("button", { name: "Open now playing" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Return to now playing: Blue Hour" }));
+    expect(onOpenNowPlaying).toHaveBeenCalledOnce();
+    expect(container.querySelectorAll("audio")).toHaveLength(1);
 
-    const dialog = screen.getByRole("dialog", { name: "Now playing" });
-    expect(dialog).toHaveClass("player-sheet--lyrics");
-    expect(lyrics.load).toHaveBeenCalledOnce();
-    expect(within(dialog).getByRole("button", { name: /Seek to 0:12/ })).toHaveAttribute("aria-current", "true");
-
-    await user.click(within(dialog).getByRole("button", { name: /Seek to 0:01/ }));
-    expect(player.seek).toHaveBeenCalledWith(1);
-
-    await user.click(within(dialog).getByRole("button", { name: "Show album artwork for Blue Hour" }));
-    expect(within(dialog).getByRole("button", { name: "Show lyrics for Blue Hour" })).toBeInTheDocument();
+    rerender(
+      <PlayerDock
+        currentTrack={track}
+        player={playerController()}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        pageOpen
+        onToggleQueue={vi.fn()}
+        onOpenNowPlaying={onOpenNowPlaying}
+      />,
+    );
+    expect(container.querySelector(".player-dock")).toHaveClass("player-dock--page-open");
+    expect(container.querySelectorAll("audio")).toHaveLength(1);
   });
 
   it("exposes playback and track state on the stable player dock", () => {
@@ -505,165 +509,6 @@ describe("compact player interactions", () => {
     );
   });
 
-  it("offers accessible favorite controls in both compact and expanded now playing", async () => {
-    const user = userEvent.setup();
-    const onToggleStar = vi.fn();
-
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={playerController()}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        isStarred={false}
-        onToggleStar={onToggleStar}
-        onToggleQueue={vi.fn()}
-      />,
-    );
-
-    const compactFavorite = screen.getByRole("button", { name: "Star Blue Hour" });
-    expect(compactFavorite).toHaveAttribute("aria-pressed", "false");
-    await user.click(compactFavorite);
-
-    await user.click(screen.getByRole("button", { name: "Open now playing" }));
-    const expanded = screen.getByRole("dialog", { name: "Now playing" });
-    const expandedFavorite = within(expanded).getByRole("button", { name: "Star Blue Hour" });
-    expect(expandedFavorite).toHaveAttribute("aria-pressed", "false");
-    await user.click(expandedFavorite);
-
-    expect(onToggleStar).toHaveBeenCalledTimes(2);
-  });
-
-  it("exposes a live visualizer signal and direct expanded mode controls", async () => {
-    const user = userEvent.setup();
-    const onSetVisualizerMode = vi.fn();
-    const playing = playerController();
-    playing.isPlaying = true;
-    playing.visualizer.status = "ready";
-
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={playing}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        visualizer={<canvas data-testid="dock-visualizer" />}
-        visualizerMode="hybrid"
-        onSetVisualizerMode={onSetVisualizerMode}
-        onToggleQueue={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId("dock-visualizer").parentElement).toHaveAttribute(
-      "aria-hidden",
-      "true",
-    );
-    await user.click(screen.getByRole("button", {
-      name: "LIVE · HYBRID. Switch to Spectrum visualizer",
-    }));
-    expect(onSetVisualizerMode).toHaveBeenCalledWith("spectrum");
-
-    await user.click(screen.getByRole("button", { name: "Open now playing" }));
-    const dialog = screen.getByRole("dialog", { name: "Now playing" });
-    expect(within(dialog).getByRole("status")).toHaveTextContent("LIVE · HYBRID");
-    await user.click(within(dialog).getByRole("radio", { name: "Particles" }));
-    expect(onSetVisualizerMode).toHaveBeenLastCalledWith("particles");
-  });
-
-  it("opens the current artist from full now playing and closes the sheet", async () => {
-    const user = userEvent.setup();
-    const onOpenArtist = vi.fn();
-
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={playerController()}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        onOpenArtist={onOpenArtist}
-        onToggleQueue={vi.fn()}
-      />,
-    );
-
-    await user.click(screen.getByRole("button", { name: "Open now playing" }));
-    await user.click(screen.getByRole("button", { name: "Open artist Signal Club" }));
-
-    expect(onOpenArtist).toHaveBeenCalledWith({ id: "artist-1", name: "Signal Club" });
-    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
-  });
-
-  it("expands now playing, reports queue expansion, and closes on Escape", async () => {
-    const user = userEvent.setup();
-    const player = playerController();
-
-    const view = render(
-      <div className="app">
-        <PlayerDock
-          currentTrack={track}
-          player={player}
-          coverUrl={() => ""}
-          queuePanelId="playback-queue"
-          queueOpen={false}
-          onToggleQueue={vi.fn()}
-        />
-      </div>,
-    );
-
-    const expand = screen.getByRole("button", { name: "Open now playing" });
-    expect(expand).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByRole("button", { name: "Open playback queue" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-
-    await user.click(expand);
-    expect(expand).toHaveAttribute("aria-expanded", "true");
-    const dialog = screen.getByRole("dialog", { name: "Now playing" });
-    expect(dialog).toBeInTheDocument();
-    expect(dialog.parentElement).toBe(view.container.firstElementChild);
-    expect(screen.getByRole("button", { name: "Close now playing" })).toBeEnabled();
-
-    await user.keyboard("{Escape}");
-    expect(expand).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
-  });
-
-  it("traps focus in expanded now playing and restores the expand trigger", async () => {
-    const user = userEvent.setup();
-
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={playerController()}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        isStarred={false}
-        onToggleStar={vi.fn()}
-        onToggleQueue={vi.fn()}
-      />,
-    );
-
-    const expand = screen.getByRole("button", { name: "Open now playing" });
-    await user.click(expand);
-    const dialog = screen.getByRole("dialog", { name: "Now playing" });
-    const close = within(dialog).getByRole("button", { name: "Close now playing" });
-    const openQueue = within(dialog).getByRole("button", { name: "Open queue" });
-    expect(close).toHaveFocus();
-
-    await user.tab({ shift: true });
-    expect(openQueue).toHaveFocus();
-    await user.tab();
-    expect(close).toHaveFocus();
-
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
-    expect(expand).toHaveFocus();
-  });
-
   it("opens audio tuning as a separate full-screen dialog and restores its trigger", async () => {
     const user = userEvent.setup();
     const view = render(
@@ -701,32 +546,6 @@ describe("compact player interactions", () => {
     expect(screen.queryByRole("dialog", { name: "Equalizer and stereo fusion" }))
       .not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
-  });
-
-  it("hands off from full now playing to audio settings and returns focus to the player", async () => {
-    const user = userEvent.setup();
-    render(
-      <PlayerDock
-        currentTrack={track}
-        player={playerController()}
-        coverUrl={() => ""}
-        queuePanelId="playback-queue"
-        queueOpen={false}
-        onToggleQueue={vi.fn()}
-        audioSettings={audioPreferencesController()}
-      />,
-    );
-
-    const expand = screen.getByRole("button", { name: "Open now playing" });
-    await user.click(expand);
-    const nowPlaying = screen.getByRole("dialog", { name: "Now playing" });
-    await user.click(within(nowPlaying).getByRole("button", { name: "Open audio settings" }));
-
-    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog", { name: "Equalizer and stereo fusion" }))
-      .toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    expect(expand).toHaveFocus();
   });
 
   it("provides an operable queue drawer with Escape and a close button", async () => {
@@ -880,58 +699,35 @@ describe("compact player interactions", () => {
     expect(dispatch).not.toHaveBeenCalledWith({ type: "select", index: 0 });
   });
 
-  it("hands off from full now playing to one queue modal and one Escape owner", async () => {
-    const user = userEvent.setup();
-    const onQueueClose = vi.fn();
-    const state: QueueState = {
-      tracks: [track],
-      currentIndex: 0,
-      repeatMode: "off",
-      shuffle: false,
-    };
-
-    function PlayerQueueHarness() {
-      const [queueOpen, setQueueOpen] = useState(false);
-      return (
-        <>
-          <PlayerDock
-            currentTrack={track}
-            player={playerController()}
-            coverUrl={() => ""}
-            queuePanelId="coordinated-playback-queue"
-            queueOpen={queueOpen}
-            onToggleQueue={() => setQueueOpen((value) => !value)}
-          />
-          <QueuePanel
-            queuePanelId="coordinated-playback-queue"
-            state={state}
-            open={queueOpen}
-            onClose={() => {
-              onQueueClose();
-              setQueueOpen(false);
-            }}
-            onSelectAndPlay={vi.fn()}
-            dispatch={vi.fn() as Dispatch<QueueAction>}
-          />
-        </>
-      );
-    }
-
-    render(<PlayerQueueHarness />);
-    await user.click(screen.getByRole("button", { name: "Open now playing" }));
-    await user.click(screen.getByRole("button", { name: "Open queue" }));
-
-    expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    expect(screen.getByRole("dialog", { name: "Playback queue" })).toBeInTheDocument();
-
-    await user.keyboard("{Escape}");
-    expect(onQueueClose).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open now playing" })).toHaveFocus();
-  });
 });
 
 describe("state coordination regressions", () => {
+  it("enters the player page on play, returns to browsing, and reopens from the compact bar", async () => {
+    const user = userEvent.setup();
+    const controller = connectedController({ starredSongs: [track] });
+    vi.spyOn(navidromeModule, "useNavidrome").mockReturnValue(controller);
+    vi.spyOn(audioPlayerModule, "useAudioPlayer").mockReturnValue(playerController());
+
+    render(<App />);
+    const audio = document.querySelector(".player-dock audio");
+    await user.click(screen.getByRole("button", { name: "Favorites" }));
+    await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Play Blue Hour" }));
+
+    expect(document.querySelector(".app")).toHaveAttribute("data-view", "nowPlaying");
+    expect(screen.getByRole("heading", { name: "Blue Hour" })).toBeInTheDocument();
+    expect(document.querySelector(".player-dock")).toHaveClass("player-dock--page-open");
+    expect(document.querySelector(".player-dock audio")).toBe(audio);
+
+    await user.click(screen.getByRole("button", { name: "Back to browsing" }));
+    expect(document.querySelector(".app")).toHaveAttribute("data-view", "favorites");
+    expect(screen.getByRole("heading", { name: "Your favorites" })).toBeInTheDocument();
+    expect(document.querySelector(".player-dock")).not.toHaveClass("player-dock--page-open");
+
+    await user.click(screen.getByRole("button", { name: "Return to now playing: Blue Hour" }));
+    expect(document.querySelector(".app")).toHaveAttribute("data-view", "nowPlaying");
+    expect(document.querySelector(".player-dock audio")).toBe(audio);
+  });
+
   it("loads the complete artist index on demand from primary navigation", async () => {
     const user = userEvent.setup();
     const controller = connectedController();
@@ -1175,15 +971,17 @@ describe("state coordination regressions", () => {
     const main = within(screen.getByRole("main"));
     await user.click(main.getByRole("button", { name: "Play Circuit One" }));
     expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "1");
+    await user.click(main.getByRole("button", { name: "Back to browsing" }));
 
     await user.click(main.getByRole("button", { name: "Play Circuit Two" }));
     expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "1");
+    await user.click(main.getByRole("button", { name: "Back to browsing" }));
 
     await user.click(main.getByRole("button", { name: "Play Riot Signal" }));
     expect(document.querySelector(".theme-burst")).toHaveAttribute("data-sequence", "2");
   });
 
-  it("preserves the shell, player, audio, and focus across a Cyber to Rock transition", async () => {
+  it("preserves the shell and audio node across player-page theme transitions", async () => {
     const user = userEvent.setup();
     const cyber = { ...track, id: "cyber-stable", title: "Night Circuit", genre: "Electronic" };
     const rock = { ...track, id: "rock-stable", title: "Live Wire", genre: "Rock" };
@@ -1200,16 +998,11 @@ describe("state coordination regressions", () => {
     const shell = document.querySelector<HTMLElement>(".app-shell")!;
     const playerDock = document.querySelector<HTMLElement>(".player-dock")!;
     const audio = playerDock.querySelector<HTMLAudioElement>("audio")!;
-    const heroMedia = document.querySelector<HTMLElement>(".hero-media")!;
-    const foreground = heroMedia.querySelector<HTMLImageElement>(".hero-media__artifact")!;
-    const focusedControl = within(playerDock).getByRole("button", {
-      name: "Open playback queue",
-    });
     const oldBurst = document.querySelector<HTMLElement>(".theme-burst")!;
-    focusedControl.focus();
-    expect(focusedControl).toHaveFocus();
     expect(app).toHaveAttribute("data-theme", "cyber");
+    expect(app).toHaveAttribute("data-view", "nowPlaying");
 
+    await user.click(main.getByRole("button", { name: "Back to browsing" }));
     fireEvent.click(main.getByRole("button", { name: "Play Live Wire" }));
     await waitFor(() => expect(app).toHaveAttribute("data-theme", "rock"));
 
@@ -1218,11 +1011,8 @@ describe("state coordination regressions", () => {
     expect(document.querySelector(".app-shell")).toBe(shell);
     expect(document.querySelector(".player-dock")).toBe(playerDock);
     expect(playerDock.querySelector("audio")).toBe(audio);
-    expect(document.querySelector(".hero-media")).toBe(heroMedia);
-    expect(heroMedia.querySelector(".hero-media__artifact")).toBe(foreground);
-    expect(foreground).toHaveAttribute("src", "/assets/themes/rock-foreground.webp");
-    expect(document.querySelectorAll(".hero-media")).toHaveLength(1);
-    expect(focusedControl).toHaveFocus();
+    expect(screen.getByRole("heading", { name: "Live Wire" })).toBeInTheDocument();
+    expect(app).toHaveAttribute("data-view", "nowPlaying");
     expect(document.querySelectorAll(".theme-burst")).toHaveLength(1);
     expect(newBurst).not.toBe(oldBurst);
     expect(oldBurst).not.toBeInTheDocument();
@@ -1246,8 +1036,7 @@ describe("state coordination regressions", () => {
     await user.click(screen.getByRole("button", { name: "Favorites" }));
     await user.click(within(screen.getByRole("main")).getByRole("button", { name: "Play Blue Hour" }));
 
-    const playback = screen.getByRole("region", { name: "Player and queue" });
-    await user.click(within(playback).getByRole("button", { name: "Star Blue Hour" }));
+    await user.click(screen.getByRole("button", { name: "Star Blue Hour" }));
 
     expect(controller.isTrackStarred).toHaveBeenCalledWith(staleQueueTrack);
     expect(controller.toggleStar).toHaveBeenCalledWith(staleQueueTrack);

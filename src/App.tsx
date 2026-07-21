@@ -11,6 +11,7 @@ import {
   type AppView,
   type PrimaryView,
 } from "./components/Navigation";
+import { NowPlayingView } from "./components/NowPlayingView";
 import { PlayerDock } from "./components/PlayerDock";
 import { QueuePanel } from "./components/QueuePanel";
 import { SearchView } from "./components/SearchView";
@@ -87,7 +88,9 @@ export default function App() {
   const [artistFilter, setArtistFilter] = useState("");
   const [detailRequest, setDetailRequest] = useState<DetailRequest>();
   const [detailHistory, setDetailHistory] = useState<NavigationEntry[]>([]);
+  const [playerReturn, setPlayerReturn] = useState<NavigationEntry>();
   const [queueOpen, setQueueOpen] = useState(false);
+  const [audioSettingsRequest, setAudioSettingsRequest] = useState(0);
   const queuePanelId = useId();
   const [notice, setNotice] = useState<string>();
   const [toastVisible, setToastVisible] = useState(false);
@@ -129,6 +132,20 @@ export default function App() {
     pendingPlay.current = false;
     void player.play();
   }, [currentTrack?.id, playRequest]);
+
+  useEffect(() => {
+    if (view !== "nowPlaying" || currentTrack) return;
+    const previous = playerReturn;
+    setPlayerReturn(undefined);
+    pendingScrollPosition.current = previous?.scrollPosition ?? 0;
+    if (previous && "request" in previous) {
+      setDetailRequest(previous.request);
+      setView(previous.view);
+    } else {
+      setDetailRequest(undefined);
+      setView(previous?.view ?? "home");
+    }
+  }, [currentTrack, playerReturn, view]);
 
   useLayoutEffect(() => {
     if (!navidrome.isConnected) return;
@@ -181,6 +198,7 @@ export default function App() {
     pendingScrollPosition.current = 0;
     setDetailRequest(undefined);
     setDetailHistory([]);
+    setPlayerReturn(undefined);
     setView(nextView);
     if (nextView === "artists" && !navidrome.artistDirectory && !navidrome.artistsLoading) {
       void navidrome.loadArtists();
@@ -196,6 +214,12 @@ export default function App() {
       view === "studio"
     ) {
       return { view };
+    }
+    if (view === "nowPlaying") {
+      if (!playerReturn) return { view: "home" };
+      return "request" in playerReturn
+        ? { view: playerReturn.view, request: playerReturn.request }
+        : { view: playerReturn.view };
     }
     return detailRequest
       ? { view: detailRequest.kind, request: detailRequest }
@@ -263,6 +287,31 @@ export default function App() {
     setView(previous?.view ?? "home");
   }
 
+  function openNowPlaying(): void {
+    if (view !== "nowPlaying") {
+      setPlayerReturn({
+        ...currentNavigationEntry(),
+        scrollPosition: readScrollPosition(),
+      });
+    }
+    pendingScrollPosition.current = 0;
+    setQueueOpen(false);
+    setView("nowPlaying");
+  }
+
+  function closeNowPlaying(): void {
+    const previous = playerReturn;
+    setPlayerReturn(undefined);
+    pendingScrollPosition.current = previous?.scrollPosition ?? 0;
+    if (previous && "request" in previous) {
+      setDetailRequest(previous.request);
+      setView(previous.view);
+      return;
+    }
+    setDetailRequest(undefined);
+    setView(previous?.view ?? "home");
+  }
+
   function requestPlayback(track: Track, index: number, tracks: Track[]): void {
     if (visualizerEnabled) void player.visualizer.activate();
     if (audioPreferences.preferences.eqEnabled || audioPreferences.preferences.stereoBlend > 0) {
@@ -270,6 +319,7 @@ export default function App() {
     }
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks, startIndex: index });
+    openNowPlaying();
     setPlayRequest((value) => value + 1);
     setNotice(`Playing ${track.title}`);
   }
@@ -282,6 +332,7 @@ export default function App() {
     }
     pendingPlay.current = true;
     dispatch({ type: "playNow", tracks });
+    openNowPlaying();
     setPlayRequest((value) => value + 1);
     setNotice(`Playing ${tracks[0]!.album || tracks[0]!.genre || "this collection"}`);
   }
@@ -306,6 +357,7 @@ export default function App() {
     }
     pendingPlay.current = true;
     dispatch({ type: "select", index });
+    openNowPlaying();
     setPlayRequest((value) => value + 1);
     setNotice(`Playing ${track.title}`);
   }
@@ -326,6 +378,7 @@ export default function App() {
     pendingScrollPosition.current = 0;
     setDetailRequest(undefined);
     setDetailHistory([]);
+    setPlayerReturn(undefined);
     setQueueOpen(false);
     setNotice(undefined);
   }
@@ -336,6 +389,38 @@ export default function App() {
   }
 
   function renderView() {
+    if (view === "nowPlaying" && currentTrack) {
+      return (
+        <NowPlayingView
+          track={currentTrack}
+          player={player}
+          lyrics={lyrics}
+          coverUrl={coverUrl}
+          isStarred={navidrome.isTrackStarred(currentTrack)}
+          queueOpen={queueOpen}
+          visualizerMode={visualPreferences.preferences.visualizer}
+          onBack={closeNowPlaying}
+          onToggleStar={() => toggleStar(currentTrack)}
+          onOpenArtist={openArtist}
+          onToggleQueue={() => setQueueOpen((value) => !value)}
+          onOpenAudioSettings={() => setAudioSettingsRequest((value) => value + 1)}
+          visualizer={(
+            <AudioVisualizer
+              className="now-playing-view__visualizer-canvas"
+              {...PLAYER_VISUALIZER_BUDGET}
+              readFrame={player.visualizer.readFrame}
+              enabled={visualizerEnabled && player.visualizer.status === "ready"}
+              playing={player.isPlaying}
+              themeId={theme.id}
+              intensity={visualPreferences.preferences.intensity / 50}
+              primary={themeStyle["--theme-primary"]}
+              secondary={themeStyle["--theme-secondary"]}
+              mode={visualPreferences.preferences.visualizer}
+            />
+          )}
+        />
+      );
+    }
     if (view === "artists") {
       return (
         <ArtistsView
@@ -554,14 +639,13 @@ export default function App() {
             coverUrl={coverUrl}
             queuePanelId={queuePanelId}
             queueOpen={queueOpen}
-            isStarred={currentTrack ? navidrome.isTrackStarred(currentTrack) : false}
-            onToggleStar={currentTrack ? () => toggleStar(currentTrack) : undefined}
-            onOpenArtist={openArtist}
             onToggleQueue={() => setQueueOpen((value) => !value)}
             visualizerMode={visualPreferences.preferences.visualizer}
             onSetVisualizerMode={setVisualizerMode}
             audioSettings={audioPreferences}
-            lyrics={lyrics}
+            pageOpen={view === "nowPlaying"}
+            onOpenNowPlaying={openNowPlaying}
+            audioSettingsRequest={audioSettingsRequest}
             visualizer={(
               <AudioVisualizer
                 className="player-dock__visualizer-canvas"

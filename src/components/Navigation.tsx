@@ -7,6 +7,7 @@ export type AppView =
   | "search"
   | "favorites"
   | "studio"
+  | "nowPlaying"
   | "album"
   | "artist"
   | "genre";

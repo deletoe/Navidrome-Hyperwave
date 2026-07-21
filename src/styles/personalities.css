@@ -2,7 +2,6 @@
   font-family: var(--body-font, Inter, ui-sans-serif, system-ui, sans-serif);
   letter-spacing: var(--body-tracking, 0);
 }
-
 [data-theme] .ambient-layer {
   background-color: var(--theme-bg);
   background-image:
@@ -1783,21 +1782,21 @@
   }
 
   [data-theme="lounge"] .player-dock__artwork,
-  [data-theme="lounge"] .player-sheet__artwork {
+  [data-theme="lounge"] .now-playing-view__artwork {
     border-radius: 50%;
     animation: lounge-turntable-spin 18s linear infinite;
     animation-play-state: paused;
   }
 
   [data-theme="lounge"][data-playing="true"] .player-dock__artwork,
-  [data-theme="lounge"][data-playing="true"] .player-sheet__artwork {
+  [data-theme="lounge"][data-playing="true"] .now-playing-view__artwork {
     animation-play-state: running;
   }
 }
 
 /* Lyrics is a second visual stage, not a reskinned text list. Each personality
    gets its own composition while sharing the same playback timeline. */
-[data-theme="prism"] .player-sheet--lyrics {
+[data-theme="prism"] .now-playing-view--lyrics {
   background:
     conic-gradient(from 215deg at 82% 18%, color-mix(in srgb, var(--theme-secondary) 24%, transparent), transparent 20% 68%, color-mix(in srgb, var(--theme-primary) 18%, transparent)),
     color-mix(in srgb, var(--theme-bg) 94%, transparent);
@@ -1820,7 +1819,7 @@
   transform: translateX(1.2rem) scale(1.07) skewX(2deg);
 }
 
-[data-theme="cyber"] .player-sheet--lyrics {
+[data-theme="cyber"] .now-playing-view--lyrics {
   background:
     repeating-linear-gradient(0deg, transparent 0 3px, rgb(0 0 0 / 0.2) 3px 4px),
     linear-gradient(90deg, color-mix(in srgb, var(--theme-primary) 8%, transparent), transparent 34%),
@@ -1860,7 +1859,7 @@
   transform: translateX(0.8rem);
 }
 
-[data-theme="bloom"] .player-sheet--lyrics {
+[data-theme="bloom"] .now-playing-view--lyrics {
   background:
     radial-gradient(circle at 14% 78%, color-mix(in srgb, var(--theme-primary) 25%, transparent), transparent 30%),
     radial-gradient(circle at 82% 18%, color-mix(in srgb, var(--theme-secondary) 26%, transparent), transparent 34%),
@@ -1887,7 +1886,7 @@
   transform: scale(1.1) translateY(-0.12rem);
 }
 
-[data-theme="pixel"] .player-sheet--lyrics {
+[data-theme="pixel"] .now-playing-view--lyrics {
   background:
     linear-gradient(90deg, color-mix(in srgb, var(--theme-border) 20%, transparent) 1px, transparent 1px),
     linear-gradient(color-mix(in srgb, var(--theme-border) 20%, transparent) 1px, transparent 1px),
@@ -1917,7 +1916,7 @@
   transform: translate(-4px, -4px);
 }
 
-[data-theme="rock"] .player-sheet--lyrics {
+[data-theme="rock"] .now-playing-view--lyrics {
   background:
     linear-gradient(115deg, transparent 0 57%, color-mix(in srgb, var(--theme-primary) 14%, transparent) 57% 59%, transparent 59%),
     radial-gradient(ellipse at 45% 120%, color-mix(in srgb, var(--theme-secondary) 18%, transparent), transparent 62%),
@@ -1946,7 +1945,7 @@
   transform: rotate(-1.2deg) scale(1.08);
 }
 
-[data-theme="cinematic"] .player-sheet--lyrics {
+[data-theme="cinematic"] .now-playing-view--lyrics {
   background:
     linear-gradient(#000 0 7%, transparent 7% 93%, #000 93%),
     radial-gradient(ellipse at center, color-mix(in srgb, var(--theme-secondary) 12%, transparent), transparent 65%),
@@ -1978,7 +1977,7 @@
   transform: scale(1.12);
 }
 
-[data-theme="lounge"] .player-sheet--lyrics {
+[data-theme="lounge"] .now-playing-view--lyrics {
   background:
     radial-gradient(circle at 84% 40%, color-mix(in srgb, var(--theme-primary) 14%, transparent), transparent 32%),
     linear-gradient(102deg, color-mix(in srgb, var(--theme-surface-strong) 82%, transparent) 0 46%, transparent 46%),
@@ -2203,8 +2202,7 @@
 
   [data-theme] .mini-player,
   [data-theme] .mobile-nav,
-  [data-theme] .queue-panel,
-  [data-theme] .player-sheet {
+  [data-theme] .queue-panel {
     border-radius: var(--card-radius);
   }
 
@@ -2216,8 +2214,7 @@
     border-top-width: 2px;
   }
 
-  [data-theme] .queue-panel,
-  [data-theme] .player-sheet {
+  [data-theme] .queue-panel {
     border-radius: 0;
   }
 
@@ -2253,7 +2250,7 @@
   }
 
   [data-theme="lounge"] .player-dock__artwork,
-  [data-theme="lounge"] .player-sheet__artwork {
+  [data-theme="lounge"] .now-playing-view__artwork {
     animation: none !important;
     transform: none !important;
   }
@@ -2262,5 +2259,106 @@
   [data-theme] .album-card:hover,
   [data-theme] .track-row:hover {
     transform: none !important;
+  }
+}
+
+/* Navigation owns the stage; playback no longer owns a permanent third
+   column or bottom scene. Theme layouts keep their character around that rule. */
+@media (min-width: 1180px) {
+  [data-theme="prism"] .app-shell,
+  [data-theme="pixel"] .app-shell,
+  [data-theme="rock"] .app-shell,
+  [data-theme="lounge"] .app-shell {
+    grid-template-columns: var(--wide-navigation) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "navigation content";
+  }
+
+  [data-theme="cyber"] .app-shell,
+  [data-theme="bloom"] .app-shell,
+  [data-theme="cinematic"] .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 5.6rem minmax(0, 1fr);
+    grid-template-areas:
+      "navigation"
+      "content";
+  }
+
+  [data-theme="bloom"] .app-shell { grid-template-rows: 5.8rem minmax(0, 1fr); }
+  [data-theme="cinematic"] .app-shell { grid-template-rows: 4.6rem minmax(0, 1fr); }
+
+  [data-theme] .playback-rail {
+    display: contents;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  [data-theme] .player-dock {
+    position: fixed;
+    z-index: 45;
+    right: 1rem;
+    bottom: 1rem;
+    left: calc(var(--wide-navigation) + 1rem);
+    display: grid;
+    grid-template-columns: minmax(15rem, 1fr) auto auto;
+    grid-template-areas: none;
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+    gap: 0.75rem;
+    width: auto;
+    height: var(--compact-player-height);
+    min-height: 0;
+    padding: 0.55rem 0.7rem;
+    overflow: hidden;
+    border: var(--frame);
+    border-radius: var(--card-radius);
+    -webkit-backdrop-filter: var(--surface-filter);
+    backdrop-filter: var(--surface-filter);
+  }
+
+  [data-theme="cyber"] .player-dock,
+  [data-theme="bloom"] .player-dock,
+  [data-theme="cinematic"] .player-dock {
+    left: 1rem;
+  }
+
+  [data-theme] .player-dock .player-controls {
+    grid-area: auto;
+  }
+
+  [data-theme] .queue-panel {
+    position: fixed;
+    z-index: 80;
+    top: 1rem;
+    right: 1rem;
+    bottom: calc(var(--compact-player-height) + 2rem);
+    width: min(25rem, calc(100vw - 2rem));
+    height: auto;
+    padding: 1rem;
+    overflow: hidden;
+    border: var(--frame);
+    border-radius: var(--card-radius);
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(calc(100% + 2rem));
+  }
+
+  [data-theme] .queue-panel[data-open="true"] {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  [data-theme] .content-panel {
+    min-height: 0;
+    padding-bottom: calc(var(--compact-player-height) + 2rem);
+    overflow-y: auto;
+  }
+
+  [data-theme][data-view="nowPlaying"] .content-panel {
+    padding-bottom: clamp(1.2rem, 2.8vw, 2.6rem);
   }
 }
