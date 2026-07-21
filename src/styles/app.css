@@ -1245,7 +1245,7 @@ button[aria-pressed="true"] {
   z-index: 80;
   inset: 2rem;
   display: grid;
-  width: min(calc(100% - 4rem), 52rem);
+  width: min(calc(100% - 4rem), 34rem);
   max-height: calc(100vh - 4rem);
   max-height: calc(100dvh - 4rem);
   margin: auto;
@@ -1293,6 +1293,11 @@ button[aria-pressed="true"] {
   gap: 0.55rem;
   width: 100%;
   margin-top: 0.5rem;
+}
+
+.player-sheet__audio-settings {
+  width: 100%;
+  justify-content: center;
 }
 
 .player-sheet__visualizer {
@@ -1373,12 +1378,74 @@ button[aria-pressed="true"] {
   cursor: not-allowed;
 }
 
+.audio-tuning-dialog {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  padding: clamp(1rem, 3vw, 2.5rem);
+  overflow-y: auto;
+  background:
+    radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--theme-primary) 20%, transparent), transparent 32rem),
+    radial-gradient(circle at 90% 86%, color-mix(in srgb, var(--theme-secondary) 16%, transparent), transparent 34rem),
+    color-mix(in srgb, var(--theme-bg) 96%, black 4%);
+  color: var(--theme-text);
+}
+
+.audio-tuning-dialog__topbar {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  width: min(100%, 74rem);
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-inline: auto;
+  padding: 0.75rem;
+  border: var(--frame);
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--theme-surface-strong) 90%, transparent);
+  box-shadow: var(--surface-shadow, none);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+  backdrop-filter: blur(20px) saturate(130%);
+}
+
+.audio-tuning-dialog__topbar > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.15rem 0.65rem;
+  text-align: left;
+}
+
+.audio-tuning-dialog__topbar .eyebrow {
+  grid-column: 1 / -1;
+}
+
+.audio-tuning-dialog__topbar strong,
+.audio-tuning-dialog__topbar span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-tuning-dialog__topbar span {
+  color: var(--theme-muted);
+  font-size: 0.75rem;
+}
+
+.audio-tuning-dialog__topbar .icon-button {
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .audio-tuning {
   display: grid;
-  width: 100%;
-  gap: 0.9rem;
-  margin-top: 0.35rem;
-  padding: clamp(0.85rem, 2vw, 1.2rem);
+  width: min(100%, 74rem);
+  gap: clamp(1rem, 2vw, 1.5rem);
+  margin: clamp(1rem, 4vh, 3rem) auto 0;
+  padding: clamp(1rem, 3vw, 2rem);
   overflow: hidden;
   border: var(--frame);
   border-radius: var(--control-radius);
@@ -1399,7 +1466,7 @@ button[aria-pressed="true"] {
 
 .audio-tuning h3 {
   margin-top: 0.15rem;
-  font-size: clamp(1rem, 3vw, 1.35rem);
+  font-size: clamp(1.2rem, 3vw, 2rem);
 }
 
 .audio-tuning__status {
@@ -1497,7 +1564,7 @@ button[aria-pressed="true"] {
   grid-template-columns: repeat(11, minmax(2.3rem, 1fr));
   gap: 0.35rem;
   min-width: 0;
-  padding: 0.8rem 0.45rem 0.6rem;
+  padding: 1.2rem 0.6rem 1rem;
   border-block: 1px solid color-mix(in srgb, var(--theme-text) 13%, transparent);
 }
 
@@ -1519,7 +1586,7 @@ button[aria-pressed="true"] {
 
 .audio-tuning__band input {
   width: 44px;
-  height: 8.5rem;
+  height: clamp(10rem, 26vh, 16rem);
   margin: 0;
   writing-mode: vertical-lr;
   direction: rtl;
@@ -3150,6 +3217,29 @@ button[aria-pressed="true"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .audio-tuning-dialog {
+    padding: 0.65rem 0.65rem calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .audio-tuning-dialog__topbar {
+    top: 0;
+    padding: 0.6rem;
+  }
+
+  .audio-tuning-dialog__topbar > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .audio-tuning-dialog__topbar span {
+    display: none;
+  }
+
+  .audio-tuning {
+    margin-top: 0.65rem;
+    padding: 0.85rem;
+    border-radius: var(--control-radius);
+  }
+
   .audio-tuning__toolbar {
     grid-template-columns: 1fr 1fr;
   }
@@ -3385,6 +3475,7 @@ button[aria-pressed="true"] {
   .mini-player,
   .queue-panel,
   .player-sheet,
+  .audio-tuning-dialog__topbar,
   .view-hero,
   .entity-hero,
   .empty-stage,

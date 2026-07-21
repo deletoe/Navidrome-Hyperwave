@@ -12,8 +12,10 @@ import { SearchView } from "./components/SearchView";
 import { TrackList } from "./components/TrackList";
 import * as audioPlayerModule from "./hooks/useAudioPlayer";
 import type { AudioPlayerController } from "./hooks/useAudioPlayer";
+import type { AudioPreferencesController } from "./hooks/useAudioPreferences";
 import * as navidromeModule from "./hooks/useNavidrome";
 import type { NavidromeController } from "./hooks/useNavidrome";
+import { DEFAULT_AUDIO_PREFERENCES } from "./lib/audioPreferences";
 import type { QueueAction, QueueState } from "./state/playerQueue";
 import type { Album, Artist, Track } from "./types";
 
@@ -75,6 +77,21 @@ function playerController(): AudioPlayerController {
     handleLoadedMetadata: vi.fn(),
     handleEnded: vi.fn(),
     handleError: vi.fn(),
+  };
+}
+
+function audioPreferencesController(): AudioPreferencesController {
+  return {
+    preferences: {
+      ...DEFAULT_AUDIO_PREFERENCES,
+      bandGains: [...DEFAULT_AUDIO_PREFERENCES.bandGains],
+    },
+    setEqEnabled: vi.fn(),
+    setPreampDb: vi.fn(),
+    setBandGain: vi.fn(),
+    applyPreset: vi.fn(),
+    setStereoBlend: vi.fn(),
+    reset: vi.fn(),
   };
 }
 
@@ -589,6 +606,71 @@ describe("compact player interactions", () => {
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
+    expect(expand).toHaveFocus();
+  });
+
+  it("opens audio tuning as a separate full-screen dialog and restores its trigger", async () => {
+    const user = userEvent.setup();
+    const view = render(
+      <div className="app">
+        <PlayerDock
+          currentTrack={track}
+          player={playerController()}
+          coverUrl={() => ""}
+          queuePanelId="playback-queue"
+          queueOpen={false}
+          onToggleQueue={vi.fn()}
+          audioSettings={audioPreferencesController()}
+        />
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Open equalizer and stereo fusion" });
+    await user.click(trigger);
+
+    const dialog = screen.getByRole("dialog", { name: "Equalizer and stereo fusion" });
+    expect(dialog).toHaveClass("audio-tuning-dialog");
+    expect(dialog.parentElement).toBe(view.container.firstElementChild);
+    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
+    expect(within(dialog).getAllByRole("slider")).toHaveLength(12);
+    const close = within(dialog).getByRole("button", { name: "Close audio settings" });
+    const fusion = within(dialog).getByRole("slider", { name: "Stereo fusion" });
+    expect(close).toHaveFocus();
+
+    await user.tab({ shift: true });
+    expect(fusion).toHaveFocus();
+    await user.tab();
+    expect(close).toHaveFocus();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Equalizer and stereo fusion" }))
+      .not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("hands off from full now playing to audio settings and returns focus to the player", async () => {
+    const user = userEvent.setup();
+    render(
+      <PlayerDock
+        currentTrack={track}
+        player={playerController()}
+        coverUrl={() => ""}
+        queuePanelId="playback-queue"
+        queueOpen={false}
+        onToggleQueue={vi.fn()}
+        audioSettings={audioPreferencesController()}
+      />,
+    );
+
+    const expand = screen.getByRole("button", { name: "Open now playing" });
+    await user.click(expand);
+    const nowPlaying = screen.getByRole("dialog", { name: "Now playing" });
+    await user.click(within(nowPlaying).getByRole("button", { name: "Open audio settings" }));
+
+    expect(screen.queryByRole("dialog", { name: "Now playing" })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Equalizer and stereo fusion" }))
+      .toBeInTheDocument();
+    await user.keyboard("{Escape}");
     expect(expand).toHaveFocus();
   });
 

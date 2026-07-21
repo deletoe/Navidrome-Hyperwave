@@ -35,6 +35,7 @@ const VISUALIZER_MODE_LABELS: Record<VisualizerMode, string> = {
 };
 
 const ACTIVE_VISUALIZER_MODES: VisualizerMode[] = ["spectrum", "particles", "hybrid"];
+const MODAL_FOCUSABLE_SELECTOR = "button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])";
 
 export function PlayerDock({
   currentTrack,
@@ -52,15 +53,22 @@ export function PlayerDock({
   audioSettings,
 }: PlayerDockProps) {
   const [expanded, setExpanded] = useState(false);
+  const [tuningOpen, setTuningOpen] = useState(false);
   const expandedId = useId();
+  const tuningId = useId();
   const positionId = useId();
   const volumeId = useId();
   const visualizerName = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const tuningCloseRef = useRef<HTMLButtonElement>(null);
+  const tuningTriggerRef = useRef<HTMLButtonElement>(null);
   const expandRef = useRef<HTMLButtonElement>(null);
   const dockRef = useRef<HTMLElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const tuningRef = useRef<HTMLDivElement>(null);
   const restoreFocusOnClose = useRef(false);
+  const restoreTuningFocusOnClose = useRef(false);
+  const tuningOpenedFromSheet = useRef(false);
   const maximum = Math.max(player.duration || currentTrack?.duration || 0, 1);
   const position = Math.min(player.progress, maximum);
   const activeVisualizerIndex = ACTIVE_VISUALIZER_MODES.indexOf(visualizerMode);
@@ -79,6 +87,17 @@ export function PlayerDock({
     setExpanded(false);
   }
 
+  function closeTuning(restoreFocus: boolean): void {
+    restoreTuningFocusOnClose.current = restoreFocus;
+    setTuningOpen(false);
+  }
+
+  function openTuning(fromSheet: boolean): void {
+    tuningOpenedFromSheet.current = fromSheet;
+    closeExpanded(false);
+    setTuningOpen(true);
+  }
+
   useEffect(() => {
     if (!expanded || queueOpen) return;
     closeRef.current?.focus();
@@ -90,9 +109,7 @@ export function PlayerDock({
       }
       if (event.key !== "Tab") return;
       const focusable = Array.from(
-        sheetRef.current?.querySelectorAll<HTMLElement>(
-          "button:not(:disabled), input:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])",
-        ) ?? [],
+        sheetRef.current?.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR) ?? [],
       );
       const first = focusable[0];
       const last = focusable.at(-1);
@@ -113,17 +130,58 @@ export function PlayerDock({
   }, [expanded, queueOpen]);
 
   useEffect(() => {
+    if (!tuningOpen || queueOpen) return;
+    tuningCloseRef.current?.focus();
+    function containTuningFocus(event: KeyboardEvent): void {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeTuning(true);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        tuningRef.current?.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR) ?? [],
+      );
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (!tuningRef.current?.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", containTuningFocus);
+    return () => document.removeEventListener("keydown", containTuningFocus);
+  }, [queueOpen, tuningOpen]);
+
+  useEffect(() => {
     if (expanded || !restoreFocusOnClose.current) return;
     restoreFocusOnClose.current = false;
     expandRef.current?.focus();
   }, [expanded]);
 
   useEffect(() => {
-    if (queueOpen && expanded) closeExpanded(false);
-  }, [expanded, queueOpen]);
+    if (tuningOpen || !restoreTuningFocusOnClose.current) return;
+    restoreTuningFocusOnClose.current = false;
+    (tuningOpenedFromSheet.current ? expandRef.current : tuningTriggerRef.current)?.focus();
+  }, [tuningOpen]);
 
   useEffect(() => {
-    if (!currentTrack) closeExpanded(false);
+    if (queueOpen && expanded) closeExpanded(false);
+    if (queueOpen && tuningOpen) closeTuning(false);
+  }, [expanded, queueOpen, tuningOpen]);
+
+  useEffect(() => {
+    if (!currentTrack) {
+      closeExpanded(false);
+      closeTuning(false);
+    }
   }, [currentTrack]);
 
   const title = currentTrack?.title ?? "Nothing playing";
@@ -166,13 +224,14 @@ export function PlayerDock({
           {audioSettings ? (
             <button
               className="icon-button"
+              ref={tuningTriggerRef}
               type="button"
-              aria-expanded={expanded}
-              aria-controls={expandedId}
+              aria-expanded={tuningOpen}
+              aria-controls={tuningId}
               aria-label="Open equalizer and stereo fusion"
               title="Equalizer and stereo fusion"
               disabled={!currentTrack}
-              onClick={() => setExpanded(true)}
+              onClick={() => openTuning(false)}
             >
               <AppIcon name="equalizer" />
             </button>
@@ -398,7 +457,14 @@ export function PlayerDock({
             </fieldset>
           ) : null}
           {audioSettings ? (
-            <AudioTuningPanel settings={audioSettings} processing={player.audioProcessing} />
+            <button
+              className="player-sheet__audio-settings button-with-icon"
+              type="button"
+              onClick={() => openTuning(true)}
+            >
+              <AppIcon name="equalizer" />
+              Open audio settings
+            </button>
           ) : null}
           <div className="player-sheet__controls" aria-label="Expanded playback controls">
             <button
@@ -439,6 +505,36 @@ export function PlayerDock({
             <AppIcon name="queue" />
             {queueOpen ? "Close queue" : "Open queue"}
           </button>
+        </div>
+      ), sheetPortalTarget) : null}
+
+      {tuningOpen && audioSettings && sheetPortalTarget ? createPortal((
+        <div
+          ref={tuningRef}
+          className="audio-tuning-dialog"
+          id={tuningId}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Equalizer and stereo fusion"
+        >
+          <div className="audio-tuning-dialog__topbar">
+            <div>
+              <p className="eyebrow">Audio settings</p>
+              <strong>{title}</strong>
+              <span>{artist}</span>
+            </div>
+            <button
+              className="icon-button"
+              ref={tuningCloseRef}
+              type="button"
+              aria-label="Close audio settings"
+              title="Close audio settings"
+              onClick={() => closeTuning(true)}
+            >
+              <AppIcon name="close" />
+            </button>
+          </div>
+          <AudioTuningPanel settings={audioSettings} processing={player.audioProcessing} />
         </div>
       ), sheetPortalTarget) : null}
 
