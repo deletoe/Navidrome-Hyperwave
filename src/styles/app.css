@@ -1446,9 +1446,12 @@ button[aria-pressed="true"] {
   gap: clamp(1rem, 2vw, 1.5rem);
   margin: clamp(1rem, 4vh, 3rem) auto 0;
   padding: clamp(1rem, 3vw, 2rem);
-  overflow: hidden;
+  overflow: visible;
   border: var(--frame);
-  border-radius: var(--control-radius);
+  /* Personality themes may use a 999px control radius for pills. A full-page
+     settings surface needs a bounded radius or its border becomes a giant
+     ellipse and clips the controls inside it. */
+  border-radius: clamp(0.75rem, var(--control-radius), 1.5rem);
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--theme-primary) 10%, transparent), transparent 42%),
     color-mix(in srgb, var(--theme-bg) 58%, transparent);
@@ -3237,7 +3240,7 @@ button[aria-pressed="true"] {
   .audio-tuning {
     margin-top: 0.65rem;
     padding: 0.85rem;
-    border-radius: var(--control-radius);
+    border-radius: clamp(0.75rem, var(--control-radius), 1.25rem);
   }
 
   .audio-tuning__toolbar {
