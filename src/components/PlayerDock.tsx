@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import type { AudioPlayerController } from "../hooks/useAudioPlayer";
 import type { AudioPreferencesController } from "../hooks/useAudioPreferences";
 import type { VisualizerMode } from "../lib/visualPreferences";
+import type { OutputRoute } from "../lib/outputRouting";
 import type { Track } from "../types";
 import { AppIcon } from "./AppIcon";
 import { AudioTuningPanel } from "./AudioTuningPanel";
@@ -23,6 +24,8 @@ export interface PlayerDockProps {
   pageOpen?: boolean;
   onOpenNowPlaying?: () => void;
   audioSettingsRequest?: number;
+  outputRoute?: OutputRoute;
+  onOpenOutputSettings?: () => void;
 }
 
 const VISUALIZER_MODE_LABELS: Record<VisualizerMode, string> = {
@@ -48,6 +51,8 @@ export function PlayerDock({
   pageOpen = false,
   onOpenNowPlaying,
   audioSettingsRequest = 0,
+  outputRoute = "local",
+  onOpenOutputSettings,
 }: PlayerDockProps) {
   const [tuningOpen, setTuningOpen] = useState(false);
   const tuningId = useId();
@@ -180,6 +185,17 @@ export function PlayerDock({
       </div>
 
       <div className="player-dock__actions">
+        {onOpenOutputSettings ? (
+          <button
+            className={`icon-button${outputRoute === "remote" ? " is-active" : ""}`}
+            type="button"
+            aria-label={`Open audio output settings. ${outputRoute === "remote" ? "Playing on Mac" : "Playing on this device"}`}
+            title={outputRoute === "remote" ? "Output: Mac playback service" : "Output: this device"}
+            onClick={onOpenOutputSettings}
+          >
+            <AppIcon name="output" />
+          </button>
+        ) : null}
         {audioSettings ? (
           <button
             className="icon-button"

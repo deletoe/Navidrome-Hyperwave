@@ -24,6 +24,7 @@ export interface NowPlayingViewProps {
   onOpenArtist(artist: Artist): void;
   onToggleQueue(): void;
   onOpenAudioSettings(): void;
+  onOpenOutputSettings(): void;
 }
 
 export function NowPlayingView({
@@ -40,6 +41,7 @@ export function NowPlayingView({
   onOpenArtist,
   onToggleQueue,
   onOpenAudioSettings,
+  onOpenOutputSettings,
 }: NowPlayingViewProps) {
   const [surface, setSurface] = useState<"artwork" | "lyrics">("artwork");
   const positionId = useId();
@@ -75,6 +77,15 @@ export function NowPlayingView({
             onClick={onToggleStar}
           >
             <AppIcon name="favorite" filled={isStarred} />
+          </button>
+          <button
+            className="icon-button"
+            type="button"
+            aria-label="Open audio output settings"
+            title="Audio output"
+            onClick={onOpenOutputSettings}
+          >
+            <AppIcon name="output" />
           </button>
           <button
             className="icon-button"

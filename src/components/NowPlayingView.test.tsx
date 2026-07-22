@@ -25,6 +25,13 @@ function player(): AudioPlayerController {
     volume: 0.8,
     muted: false,
     error: undefined,
+    output: {
+      supported: true,
+      deviceId: "",
+      label: "System default",
+      selectDevice: vi.fn(async () => undefined),
+      useSystemDefault: vi.fn(async () => undefined),
+    },
     visualizer: { supported: true, status: "ready", activate: vi.fn(), readFrame: vi.fn() },
     audioProcessing: { supported: true, status: "ready", activate: vi.fn() },
     play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), next: vi.fn(), previous: vi.fn(),
@@ -72,6 +79,7 @@ describe("NowPlayingView", () => {
         onOpenArtist={vi.fn()}
         onToggleQueue={vi.fn()}
         onOpenAudioSettings={vi.fn()}
+        onOpenOutputSettings={vi.fn()}
       />,
     );
 

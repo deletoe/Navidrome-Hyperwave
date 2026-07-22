@@ -52,6 +52,13 @@ function playerController(): AudioPlayerController {
     volume: 0.8,
     muted: false,
     error: undefined,
+    output: {
+      supported: true,
+      deviceId: "",
+      label: "System default",
+      selectDevice: vi.fn(async () => undefined),
+      useSystemDefault: vi.fn(async () => undefined),
+    },
     visualizer: {
       supported: true,
       status: "waiting",

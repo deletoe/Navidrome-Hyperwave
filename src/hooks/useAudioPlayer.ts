@@ -51,6 +51,15 @@ export interface AudioProcessingController {
   activate(): Promise<void>;
 }
 
+export interface AudioOutputController {
+  supported: boolean;
+  deviceId: string;
+  label: string;
+  error?: string;
+  selectDevice(): Promise<void>;
+  useSystemDefault(): Promise<void>;
+}
+
 export interface AudioPlayerController {
   audioRef: RefObject<HTMLAudioElement | null>;
   isPlaying: boolean;
@@ -59,6 +68,7 @@ export interface AudioPlayerController {
   volume: number;
   muted: boolean;
   error?: string;
+  output: AudioOutputController;
   visualizer: AudioVisualizerController;
   audioProcessing: AudioProcessingController;
   play(): Promise<void>;
@@ -98,6 +108,18 @@ interface PendingPause {
   audio: HTMLAudioElement;
   loadKey: number | string | undefined;
 }
+
+type SinkSelectableAudioElement = HTMLAudioElement & {
+  setSinkId?: (sinkId: string) => Promise<void>;
+};
+
+type SinkSelectableAudioContext = AudioContext & {
+  setSinkId?: (sinkId: string) => Promise<void>;
+};
+
+type OutputSelectableMediaDevices = MediaDevices & {
+  selectAudioOutput?: () => Promise<MediaDeviceInfo>;
+};
 
 const VISUALIZER_RESUME_TIMEOUT_MS = 600;
 export const PLAYBACK_FADE_IN_MS = 320;
@@ -152,6 +174,10 @@ export function useAudioPlayer({
   const [visualizerError, setVisualizerError] = useState<string>();
   const [processingStatus, setProcessingStatus] = useState<AudioProcessingStatus>("off");
   const [processingError, setProcessingError] = useState<string>();
+  const [outputDeviceId, setOutputDeviceId] = useState("");
+  const [outputDeviceLabel, setOutputDeviceLabel] = useState("System default");
+  const [outputError, setOutputError] = useState<string>();
+  const outputDeviceIdRef = useRef("");
   const currentOccurrenceKey = getCurrentOccurrenceKey(queueState);
   const AudioContextConstructor = getAudioContextConstructor();
   const processingEnabled = audioPreferences.eqEnabled || audioPreferences.stereoBlend > 0;
@@ -193,6 +219,62 @@ export function useAudioPlayer({
       setProcessingStatus("waiting");
     }
   }, [AudioContextConstructor, audioPreferences, processingEnabled]);
+
+  const outputSelectionSupported = typeof HTMLMediaElement !== "undefined"
+    && typeof (HTMLMediaElement.prototype as SinkSelectableAudioElement).setSinkId === "function"
+    && typeof (navigator.mediaDevices as OutputSelectableMediaDevices | undefined)?.selectAudioOutput === "function";
+
+  async function applyOutputDevice(deviceId: string, label: string): Promise<void> {
+    const audio = audioRef.current as SinkSelectableAudioElement | null;
+    const graph = audioGraph.current;
+    try {
+      if (audio?.setSinkId) await audio.setSinkId(deviceId);
+      const context = graph?.context as SinkSelectableAudioContext | undefined;
+      if (context?.setSinkId) await context.setSinkId(deviceId);
+      outputDeviceIdRef.current = deviceId;
+      setOutputDeviceId(deviceId);
+      setOutputDeviceLabel(label || (deviceId ? "Selected output" : "System default"));
+      setOutputError(undefined);
+    } catch (outputDeviceError) {
+      const detail = outputDeviceError instanceof Error
+        ? outputDeviceError.message
+        : "The output device could not be selected";
+      setOutputError(detail);
+      throw outputDeviceError;
+    }
+  }
+
+  async function selectOutputDevice(): Promise<void> {
+    const mediaDevices = navigator.mediaDevices as OutputSelectableMediaDevices | undefined;
+    if (!mediaDevices?.selectAudioOutput) {
+      const message = "This browser uses the system audio picker and cannot select speakers inside the page";
+      setOutputError(message);
+      throw new Error(message);
+    }
+    const device = await mediaDevices.selectAudioOutput();
+    await applyOutputDevice(device.deviceId, device.label || "Selected output");
+  }
+
+  async function useSystemDefaultOutput(): Promise<void> {
+    await applyOutputDevice("", "System default");
+  }
+
+  useEffect(() => {
+    if (!navigator.mediaDevices?.addEventListener || !outputDeviceIdRef.current) return;
+    const handleDeviceChange = () => {
+      void navigator.mediaDevices.enumerateDevices().then((devices) => {
+        const stillAvailable = devices.some(
+          (device) => device.kind === "audiooutput" && device.deviceId === outputDeviceIdRef.current,
+        );
+        if (stillAvailable) return;
+        void applyOutputDevice("", "System default").then(() => {
+          setOutputError("The selected output disconnected; playback returned to the system default");
+        });
+      });
+    };
+    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () => navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+  }, [outputDeviceId]);
 
   const mediaUrls = useMemo(
     () =>
@@ -755,6 +837,14 @@ export function useAudioPlayer({
     let source: MediaElementAudioSourceNode | undefined;
     try {
       context = new ContextConstructor();
+      const selectedOutputId = outputDeviceIdRef.current;
+      if (selectedOutputId) {
+        try {
+          await (context as SinkSelectableAudioContext).setSinkId?.(selectedOutputId);
+        } catch (sinkError) {
+          setOutputError(sinkError instanceof Error ? sinkError.message : "The output device became unavailable");
+        }
+      }
       const contextState = await resumeAudioContext(context);
       if (contextState !== "running") {
         void context.close().catch(() => undefined);
@@ -936,6 +1026,14 @@ export function useAudioPlayer({
     volume,
     muted,
     error,
+    output: {
+      supported: outputSelectionSupported,
+      deviceId: outputDeviceId,
+      label: outputDeviceLabel,
+      error: outputError,
+      selectDevice: selectOutputDevice,
+      useSystemDefault: useSystemDefaultOutput,
+    },
     visualizer: {
       supported: Boolean(AudioContextConstructor),
       status: visualizerEnabled ? visualizerStatus : "off",

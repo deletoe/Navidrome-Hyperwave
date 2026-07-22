@@ -11,6 +11,8 @@
     "dev": "vite --host 127.0.0.1",
     "dev:lan": "vite --host 0.0.0.0",
     "desktop:dev": "node desktop/dev-runner.mjs",
+    "output-server": "npm run build && node desktop/output-server-launcher.mjs",
+    "output-server:smoke": "npm run build && node desktop/output-server-smoke.mjs",
     "desktop:dir": "npm run build && npm run desktop:icon && electron-builder --mac dir --arm64",
     "desktop:package": "npm run build && npm run desktop:icon && electron-builder --mac dmg zip --arm64",
     "desktop:icon": "node desktop/generate-icon.mjs",
@@ -23,7 +25,8 @@
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "spark-md5": "^3.0.2"
+    "spark-md5": "^3.0.2",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",

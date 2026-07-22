@@ -12,6 +12,7 @@ import {
   type PrimaryView,
 } from "./components/Navigation";
 import { NowPlayingView } from "./components/NowPlayingView";
+import { OutputSettingsDialog } from "./components/OutputSettingsDialog";
 import { PlayerDock } from "./components/PlayerDock";
 import { QueuePanel } from "./components/QueuePanel";
 import { SearchView } from "./components/SearchView";
@@ -22,6 +23,7 @@ import { useAudioPlayer } from "./hooks/useAudioPlayer";
 import { useAudioPreferences } from "./hooks/useAudioPreferences";
 import { useCoverPalette } from "./hooks/useCoverPalette";
 import { useNavidrome } from "./hooks/useNavidrome";
+import { useOutputRouting } from "./hooks/useOutputRouting";
 import { useTrackLyrics } from "./hooks/useTrackLyrics";
 import { useVisualPreferences } from "./hooks/useVisualPreferences";
 import type { DesktopCommand } from "./desktop";
@@ -75,7 +77,7 @@ export default function App() {
   const [queueState, dispatch] = useReducer(queueReducer, createInitialQueueState());
   const currentTrack = getCurrentTrack(queueState);
   const visualizerEnabled = visualPreferences.preferences.visualizer !== "off";
-  const player = useAudioPlayer({
+  const localPlayer = useAudioPlayer({
     client: navidrome.client,
     currentTrack,
     queueState,
@@ -83,6 +85,13 @@ export default function App() {
     visualizerEnabled,
     audioPreferences: audioPreferences.preferences,
   });
+  const outputRouting = useOutputRouting({
+    localPlayer,
+    queueState,
+    dispatch,
+    serverUrl: navidrome.rememberedServerUrl,
+  });
+  const player = outputRouting.player;
   const lyrics = useTrackLyrics(navidrome.client, currentTrack?.id);
   const [view, setView] = useState<AppView>("home");
   const [previewThemeId, setPreviewThemeId] = useState<ThemePreviewId>("auto");
@@ -92,6 +101,7 @@ export default function App() {
   const [playerReturn, setPlayerReturn] = useState<NavigationEntry>();
   const [queueOpen, setQueueOpen] = useState(false);
   const [audioSettingsRequest, setAudioSettingsRequest] = useState(0);
+  const [outputSettingsOpen, setOutputSettingsOpen] = useState(false);
   const queuePanelId = useId();
   const [notice, setNotice] = useState<string>();
   const [toastVisible, setToastVisible] = useState(false);
@@ -370,7 +380,8 @@ export default function App() {
   }
 
   function disconnect(): void {
-    player.reset();
+    outputRouting.disconnect();
+    localPlayer.reset();
     dispatch({ type: "clear" });
     navidrome.disconnect();
     setView("home");
@@ -381,6 +392,7 @@ export default function App() {
     setDetailHistory([]);
     setPlayerReturn(undefined);
     setQueueOpen(false);
+    setOutputSettingsOpen(false);
     setNotice(undefined);
   }
 
@@ -458,6 +470,7 @@ export default function App() {
           onOpenArtist={openArtist}
           onToggleQueue={() => setQueueOpen((value) => !value)}
           onOpenAudioSettings={() => setAudioSettingsRequest((value) => value + 1)}
+          onOpenOutputSettings={() => setOutputSettingsOpen(true)}
           visualizer={(
             <AudioVisualizer
               className="now-playing-view__visualizer-canvas"
@@ -700,6 +713,8 @@ export default function App() {
             pageOpen={view === "nowPlaying"}
             onOpenNowPlaying={openNowPlaying}
             audioSettingsRequest={audioSettingsRequest}
+            outputRoute={outputRouting.route}
+            onOpenOutputSettings={() => setOutputSettingsOpen(true)}
             visualizer={(
               <AudioVisualizer
                 className="player-dock__visualizer-canvas"
@@ -726,6 +741,13 @@ export default function App() {
           />
         </section>
       </div>
+      {outputSettingsOpen ? (
+        <OutputSettingsDialog
+          routing={outputRouting}
+          localOutput={localPlayer.output}
+          onClose={() => setOutputSettingsOpen(false)}
+        />
+      ) : null}
       <Toast
         message={toastVisible ? toastMessage : undefined}
         tone={navidrome.mutationError || player.error ? "error" : "success"}
