@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="120" y1="80" x2="930" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1B1743"/>
+      <stop offset="0.46" stop-color="#101B36"/>
+      <stop offset="1" stop-color="#071014"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="210" y1="270" x2="845" y2="790" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8DE7FF"/>
+      <stop offset="0.5" stop-color="#B99CFF"/>
+      <stop offset="1" stop-color="#FF7FBD"/>
+    </linearGradient>
+    <radialGradient id="disc" cx="0" cy="0" r="1" gradientTransform="translate(512 512) rotate(90) scale(298)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1D2440"/>
+      <stop offset="0.56" stop-color="#0C1224"/>
+      <stop offset="1" stop-color="#050913"/>
+    </radialGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="18"/>
+    </filter>
+  </defs>
+  <rect x="52" y="52" width="920" height="920" rx="218" fill="url(#background)"/>
+  <rect x="66" y="66" width="892" height="892" rx="204" fill="none" stroke="#CDEFFF" stroke-opacity="0.14" stroke-width="4"/>
+  <circle cx="512" cy="512" r="306" fill="url(#disc)" stroke="#8DE7FF" stroke-opacity="0.24" stroke-width="8"/>
+  <circle cx="512" cy="512" r="234" fill="none" stroke="#B99CFF" stroke-opacity="0.18" stroke-width="8"/>
+  <circle cx="512" cy="512" r="164" fill="none" stroke="#8DE7FF" stroke-opacity="0.14" stroke-width="7"/>
+  <path d="M210 526C270 526 279 388 340 388C401 388 411 650 472 650C533 650 543 310 604 310C665 310 676 596 737 596C777 596 798 500 826 500" fill="none" stroke="url(#signal)" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" opacity="0.3" filter="url(#glow)"/>
+  <path d="M210 526C270 526 279 388 340 388C401 388 411 650 472 650C533 650 543 310 604 310C665 310 676 596 737 596C777 596 798 500 826 500" fill="none" stroke="url(#signal)" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="64" fill="#0B1020" stroke="url(#signal)" stroke-width="18"/>
+  <circle cx="512" cy="512" r="16" fill="#F6F8FF"/>
+</svg>

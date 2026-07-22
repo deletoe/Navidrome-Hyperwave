@@ -1,11 +1,19 @@
 {
   "name": "my-navidrome-5-6",
+  "productName": "My Navidrome",
+  "description": "A personality-driven Navidrome music player for macOS and the web.",
+  "author": "My Navidrome contributors",
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:lan": "vite --host 0.0.0.0",
+    "desktop:dev": "node desktop/dev-runner.mjs",
+    "desktop:dir": "npm run build && npm run desktop:icon && electron-builder --mac dir --arm64",
+    "desktop:package": "npm run build && npm run desktop:icon && electron-builder --mac dmg zip --arm64",
+    "desktop:icon": "node desktop/generate-icon.mjs",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest",
@@ -25,9 +33,69 @@
     "@types/react-dom": "^19.0.0",
     "@types/spark-md5": "^3.0.5",
     "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^43.2.0",
+    "electron-builder": "^26.15.3",
     "jsdom": "^25.0.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^4.1.10"
+  },
+  "allowScripts": {
+    "electron@43.2.0": true,
+    "esbuild@0.25.12": true
+  },
+  "build": {
+    "appId": "com.deletoe.mynavidrome",
+    "productName": "My Navidrome",
+    "asar": true,
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/main.cjs",
+      "desktop/preload.cjs",
+      "desktop/security.cjs",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.music",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "hardenedRuntime": false,
+      "extendInfo": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      },
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "dmg": {
+      "artifactName": "My-Navidrome-${version}-${arch}.${ext}",
+      "title": "My Navidrome ${version}",
+      "backgroundColor": "#0b1020",
+      "window": {
+        "width": 660,
+        "height": 420
+      },
+      "contents": [
+        {
+          "x": 170,
+          "y": 205,
+          "type": "file"
+        },
+        {
+          "x": 490,
+          "y": 205,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }

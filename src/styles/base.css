@@ -71,6 +71,19 @@ body {
   line-height: 1.5;
 }
 
+html[data-desktop="macos"],
+html[data-desktop="macos"] body {
+  overscroll-behavior: none;
+  user-select: none;
+}
+
+html[data-desktop="macos"] input,
+html[data-desktop="macos"] textarea,
+html[data-desktop="macos"] [contenteditable="true"],
+html[data-desktop="macos"] .lyrics-player__line {
+  user-select: text;
+}
+
 button,
 input,
 select,

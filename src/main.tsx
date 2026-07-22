@@ -2,11 +2,16 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import { isDesktopApp } from "./desktop";
 import "./styles/base.css";
 import "./styles/app.css";
 import "./styles/personalities.css";
 
 const rootElement = document.getElementById("root");
+
+if (isDesktopApp()) {
+  document.documentElement.dataset.desktop = "macos";
+}
 
 if (!rootElement) {
   throw new Error("The application root element is missing");

@@ -24,6 +24,7 @@ import { useCoverPalette } from "./hooks/useCoverPalette";
 import { useNavidrome } from "./hooks/useNavidrome";
 import { useTrackLyrics } from "./hooks/useTrackLyrics";
 import { useVisualPreferences } from "./hooks/useVisualPreferences";
+import type { DesktopCommand } from "./desktop";
 import {
   getThemeById,
   resolveThemeForTrack,
@@ -387,6 +388,59 @@ export default function App() {
     visualPreferences.setVisualizer(mode);
     if (mode !== "off") void player.visualizer.activate();
   }
+
+  useEffect(() => {
+    const desktop = window.myNavidromeDesktop;
+    if (!desktop) return;
+    return desktop.onCommand((command: DesktopCommand) => {
+      if (command === "toggle-playback") {
+        void player.toggle();
+        return;
+      }
+      if (command === "previous-track") {
+        player.previous();
+        return;
+      }
+      if (command === "next-track") {
+        player.next();
+        return;
+      }
+      if (!navidrome.isConnected) return;
+      if (command === "back") {
+        if (view === "nowPlaying") closeNowPlaying();
+        else if (view === "album" || view === "artist" || view === "genre") closeDetail();
+        return;
+      }
+      if (command === "show-now-playing") {
+        if (currentTrack) openNowPlaying();
+        return;
+      }
+      if (command === "toggle-queue") {
+        if (currentTrack) setQueueOpen((open) => !open);
+        return;
+      }
+      if (command === "audio-settings") {
+        if (currentTrack) setAudioSettingsRequest((request) => request + 1);
+        return;
+      }
+      const destination = command.replace("navigate-", "") as PrimaryView;
+      navigate(destination);
+      if (destination === "search") {
+        window.setTimeout(() => document.getElementById("archive-search")?.focus(), 0);
+      }
+    });
+  }, [currentTrack, navidrome.isConnected, player, view]);
+
+  useEffect(() => {
+    window.myNavidromeDesktop?.updatePlayback({
+      title: currentTrack?.title ?? "",
+      artist: currentTrack?.displayArtist || currentTrack?.artist || "",
+      isPlaying: player.isPlaying,
+    });
+    document.title = currentTrack
+      ? `${currentTrack.title} — ${currentTrack.displayArtist || currentTrack.artist || "Unknown artist"}`
+      : "My Navidrome";
+  }, [currentTrack?.id, player.isPlaying]);
 
   function renderView() {
     if (view === "nowPlaying" && currentTrack) {

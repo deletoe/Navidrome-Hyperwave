@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 
+import { isDesktopApp } from "../desktop";
 import type { ConnectionInput } from "../hooks/useNavidrome";
 import type { AuthMode } from "../types";
 import { AppIcon } from "./AppIcon";
@@ -21,6 +22,7 @@ export function ConnectionGate({
   themeAsset = "",
   onConnect,
 }: ConnectionGateProps) {
+  const desktop = isDesktopApp();
   const [serverUrl, setServerUrl] = useState(rememberedServerUrl);
   const [authMode, setAuthMode] = useState<AuthMode>("password");
   const [username, setUsername] = useState(rememberedUsername);
@@ -42,7 +44,7 @@ export function ConnectionGate({
         <p className="eyebrow">My Navidrome 5.6</p>
         <h1 id="connection-title">Connect your archive</h1>
         <p>
-          Open your personal music library in this browser. Your secret stays in memory for this
+          Open your personal music library in this {desktop ? "Mac app" : "browser"}. Your secret stays in memory for this
           session and is never saved by this app.
         </p>
 
@@ -127,7 +129,11 @@ export function ConnectionGate({
             <div className="connection-form__error" role="alert">
               <strong>Connection failed</strong>
               <p>{error}</p>
-              <p>Check the address, browser access, protocol, and Navidrome CORS settings.</p>
+              <p>
+                {desktop
+                  ? "Check the server address, protocol, and network connection."
+                  : "Check the address, browser access, protocol, and Navidrome CORS settings."}
+              </p>
             </div>
           ) : null}
 
