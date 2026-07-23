@@ -233,9 +233,12 @@ export function useAudioPlayer({
     const audio = audioRef.current as SinkSelectableAudioElement | null;
     const graph = audioGraph.current;
     try {
-      if (audio?.setSinkId) await audio.setSinkId(deviceId);
       const context = graph?.context as SinkSelectableAudioContext | undefined;
-      if (context?.setSinkId) await context.setSinkId(deviceId);
+      if (context?.setSinkId) {
+        await context.setSinkId(deviceId);
+      } else if (audio?.setSinkId) {
+        await audio.setSinkId(deviceId);
+      }
       outputDeviceIdRef.current = deviceId;
       setOutputDeviceId(deviceId);
       setOutputDeviceLabel(label || (deviceId ? "Selected output" : "System default"));
@@ -259,9 +262,17 @@ export function useAudioPlayer({
     }
 
     try {
-      if (requestPermission && navigator.mediaDevices.getUserMedia) {
-        const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        permissionStream.getTracks().forEach((track) => track.stop());
+      const alreadyHasNamedOutputs = outputDevices.some(
+        (device) => device.deviceId !== "default" && !device.label.startsWith("Audio output "),
+      );
+      if (requestPermission && !alreadyHasNamedOutputs && navigator.mediaDevices.getUserMedia) {
+        try {
+          const permissionStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          permissionStream.getTracks().forEach((track) => track.stop());
+        } catch {
+          // A dismissed microphone prompt must not discard outputs that Chrome
+          // can already enumerate. The subsequent scan remains useful.
+        }
       }
       const devices = await navigator.mediaDevices.enumerateDevices();
       let outputIndex = 0;

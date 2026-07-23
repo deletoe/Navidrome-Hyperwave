@@ -101,7 +101,7 @@ describe("OutputSettingsDialog", () => {
     );
     await user.selectOptions(screen.getByLabelText("Client audio device"), "headphones");
     expect(activeLocalOutput.selectDevice).toHaveBeenCalledWith("headphones");
-    await user.click(screen.getByRole("button", { name: "Show all devices" }));
+    await user.click(screen.getByRole("button", { name: "Refresh client devices" }));
     expect(activeLocalOutput.refreshDevices).toHaveBeenCalledWith(true);
   });
 });

@@ -156,11 +156,11 @@ export function OutputSettingsDialog({
                 </select>
                 <button className="button-with-icon" type="button" disabled={deviceBusy} onClick={() => void discoverDevices()}>
                   <AppIcon name="retry" />
-                  {deviceBusy ? "Scanning…" : "Show all devices"}
+                  {deviceBusy ? "Scanning…" : "Refresh client devices"}
                 </button>
               </div>
               <p className="output-settings-note">
-                Chrome may ask for microphone permission to reveal every output device and its name.
+                If Chrome initially hides device names, refreshing the client list may ask for microphone permission.
                 Audio is not recorded; the temporary permission stream is stopped immediately.
               </p>
             </div>
