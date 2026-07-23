@@ -90,6 +90,7 @@ export default function App() {
     queueState,
     dispatch,
     serverUrl: navidrome.rememberedServerUrl,
+    streamUrlForTrack: (id) => navidrome.client?.streamUrl(id) ?? "",
   });
   const player = outputRouting.player;
   const lyrics = useTrackLyrics(navidrome.client, currentTrack?.id);

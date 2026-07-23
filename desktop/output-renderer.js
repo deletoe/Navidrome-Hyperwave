@@ -38,7 +38,7 @@ async function publishDevices() {
       .filter((device) => device.kind === "audiooutput")
       .map((device, index) => ({
         deviceId: device.deviceId,
-        label: device.label || `Mac audio output ${index + 1}`,
+        label: device.label || `Server audio output ${index + 1}`,
       })));
   } catch (error) {
     outputError = error instanceof Error ? error.message : "Audio outputs could not be enumerated";
@@ -55,7 +55,7 @@ async function selectDevice(deviceId) {
     publishState();
     await publishDevices();
   } catch (error) {
-    outputError = error instanceof Error ? error.message : "The Mac output device could not be selected";
+    outputError = error instanceof Error ? error.message : "The server output device could not be selected";
     publishState();
   }
 }

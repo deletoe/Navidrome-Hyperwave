@@ -1,8 +1,8 @@
-# Standalone Mac output server
+# Built-in server audio output
 
-The output server is independent from `My Navidrome.app`. It runs from the project checkout,
-serves the web player to phones on the LAN, owns its own Navidrome connection, and renders audio
-through a selected CoreAudio device on the Mac.
+The Web service can render audio either on the browser device or on the machine running the
+service. Server audio is a platform-neutral backend built into the same application, not a
+separately paired service or second Navidrome account.
 
 ## Start
 
@@ -11,54 +11,49 @@ npm install
 npm run output-server
 ```
 
-When run in a terminal, the launcher asks for the Navidrome URL, username, and password. Password
-input is hidden and remains only in the output-server process memory. The terminal then prints:
+The terminal prints one or more URLs, normally `http://<server-lan-ip>:17856`. Open one of those
+URLs on a phone or another computer and use the normal Navidrome connection page. The output
+server does not add another connection or authentication form.
 
-- one or more phone URLs, normally `http://<mac-lan-ip>:17856`;
-- a six-digit pairing code;
-- whether the server-side Navidrome renderer is configured.
+`MY_NAVIDROME_OUTPUT_PORT` changes the default port `17856`.
 
-For an unattended service, provide environment variables through the process manager:
+## Playback flow
 
-```bash
-MY_NAVIDROME_URL=https://music.example.com \
-MY_NAVIDROME_USERNAME=listener \
-MY_NAVIDROME_PASSWORD='...' \
-npm run output-server
-```
+1. The browser logs into Navidrome through the existing connection page.
+2. The browser automatically discovers the audio renderer exposed by the same Web service.
+3. **Audio output** presents **This device** and **Server audio** as peer destinations.
+4. When server audio is selected, the browser sends bounded queue metadata and per-track
+   authenticated stream URLs over a short-lived, same-host controller session.
+5. The server fetches those streams and renders them on its selected audio device.
 
-`MY_NAVIDROME_API_KEY` can replace the username and password. `MY_NAVIDROME_OUTPUT_PORT` changes
-the default port `17856`.
+There is no second login. With password authentication, Subsonic stream URLs contain a fresh
+salt and token rather than the raw password. API-key stream URLs necessarily contain the API key,
+so the output service should run only on a trusted host and trusted LAN.
 
-## Phone flow
+## Platform adapter contract
 
-1. Start the output server on the Mac.
-2. Open the printed phone URL on Android.
-3. Connect the web player to Navidrome normally.
-4. Open **Audio output** from the player bar or Now Playing page.
-5. Enter the output server's address and six-digit pairing code.
-6. Select **Mac playback service**, then choose a Mac audio device.
+Server device enumeration and selection are behind `desktop/server-audio-devices.cjs`:
 
-The phone keeps its own browser queue and sends only bounded track metadata, IDs, and playback
-commands. The output server generates authenticated Navidrome stream URLs using its own in-memory
-credentials. Passwords and API keys are not sent through the LAN control protocol.
+- macOS currently uses the implemented CoreAudio adapter;
+- Linux exposes the system default output and reserves a PipeWire/PulseAudio adapter slot;
+- Windows exposes the system default output and reserves a WASAPI adapter slot.
 
-## Audio devices
+Playback through the server system default works independently of per-device enumeration.
+Adding Linux or Windows device selectors does not require changing the browser protocol, output
+routing state, or settings-page model.
 
-The service compiles a small Swift CoreAudio helper into
-`~/Library/Caches/MyNavidromeOutputServer` on first launch. It lists real output-capable devices and
-changes the Mac default output when the phone selects one. This avoids microphone permission and
-works for built-in speakers, headphones, displays, and compatible USB audio devices.
+The macOS adapter compiles its Swift helper into
+`~/Library/Caches/MyNavidromeOutputServer` on first use. It lists output-capable devices and can
+change the current CoreAudio output without requesting microphone access.
 
-## Security boundary
+## Controller security
 
-- Pairing is required before any playback command is accepted.
-- The pairing code rotates whenever the server restarts.
-- Commands and queue payloads are size-bounded and validated.
-- The server rejects playback when the phone and renderer point at different Navidrome servers.
-- Remote clients never receive the server's Navidrome password, API key, or generated stream URLs.
-- The service is intended for a trusted home LAN. The control endpoint is plain HTTP/WebSocket; do
-  not expose port `17856` to the public internet.
+- The browser obtains a random, short-lived, one-use controller token automatically.
+- The token endpoint accepts only same-host browser origins.
+- WebSocket connections without a valid token are rejected.
+- Commands, queue sizes, metadata, device IDs, and stream URLs are bounded and validated.
+- Controller tokens and authenticated stream URLs are never broadcast in renderer state.
+- The service is intended for a trusted LAN. Do not expose port `17856` to the public internet.
 
 ## Verification
 
@@ -66,5 +61,5 @@ works for built-in speakers, headphones, displays, and compatible USB audio devi
 npm run output-server:smoke
 ```
 
-The smoke test starts a temporary Navidrome-like WAV endpoint, starts the standalone renderer,
-pairs over WebSocket, verifies real playback state, and verifies that CoreAudio devices are listed.
+The smoke test starts a temporary Navidrome-like WAV endpoint, obtains an automatic controller
+session, verifies real server playback, and checks the active platform audio-device adapter.

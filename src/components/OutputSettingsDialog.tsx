@@ -73,6 +73,9 @@ export function OutputSettingsDialog({
     }
   }
 
+  const serverReady = routing.connectionStatus === "connected" && routing.serverState?.connected;
+  const platformLabel = routing.serverState?.platform || "server";
+
   return (
     <div ref={dialogRef} className="output-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="output-settings-title">
       <header className="output-settings-dialog__topbar">
@@ -104,21 +107,21 @@ export function OutputSettingsDialog({
             </button>
             <button
               type="button"
-              className={routing.route === "remote" ? "is-active" : undefined}
-              aria-pressed={routing.route === "remote"}
-              disabled={routing.connectionStatus !== "connected"}
-              onClick={routing.useRemoteOutput}
+              className={routing.route === "server" ? "is-active" : undefined}
+              aria-pressed={routing.route === "server"}
+              disabled={!serverReady}
+              onClick={routing.useServerOutput}
             >
               <span className="output-route-card__icon"><AppIcon name="visualizer" /></span>
-              <strong>{routing.remoteName ? `${routing.remoteName} · Mac` : "Mac playback service"}</strong>
-              <span>The phone becomes a remote; the Mac fetches and plays the track itself.</span>
+              <strong>Server audio</strong>
+              <span>The same Web service renders audio on {routing.serverName || "the host machine"}.</span>
             </button>
           </div>
         </section>
 
         <section className="output-device-section" aria-labelledby="local-output-title">
           <div className="output-settings-heading">
-            <p className="eyebrow">Client output</p>
+            <p className="eyebrow">Client device</p>
             <h2 id="local-output-title">This device’s speaker</h2>
             <p>{localOutput.label}</p>
           </div>
@@ -133,90 +136,72 @@ export function OutputSettingsDialog({
           </div>
           {!localOutput.supported ? (
             <p className="output-settings-note">
-              This browser does not expose speaker selection. Use Android, Bluetooth, or Control Center’s system audio picker; playback on this device still works.
+              This browser does not expose speaker selection. Use the operating system’s audio picker; playback on this device still works.
             </p>
           ) : null}
           {localOutput.error ? <p className="output-settings-error" role="alert">{localOutput.error}</p> : null}
         </section>
 
-        <section className="remote-output-section" aria-labelledby="remote-output-title">
+        <section className="server-output-section" aria-labelledby="server-output-title">
           <div className="output-settings-heading">
-            <p className="eyebrow">LAN renderer</p>
-            <h2 id="remote-output-title">Connect to a Mac playback service</h2>
-            <p>The Mac service must already be connected to the same Navidrome server.</p>
+            <p className="eyebrow">Server device</p>
+            <h2 id="server-output-title">Server audio output</h2>
+            <p>
+              This page discovers the audio renderer built into the same Web service automatically.
+              It uses the current Navidrome session automatically, with no additional setup.
+            </p>
           </div>
-          <div className="remote-output-form">
-            <label htmlFor="remote-output-address">Mac address</label>
-            <input
-              id="remote-output-address"
-              type="text"
-              inputMode="url"
-              placeholder="http://192.168.1.20:17856"
-              value={routing.endpoint}
-              onChange={(event) => routing.setEndpoint(event.currentTarget.value)}
-            />
-            <label htmlFor="remote-output-pin">Six-digit pairing code</label>
-            <input
-              id="remote-output-pin"
-              className="remote-output-form__pin"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              placeholder="000000"
-              value={routing.pairingCode}
-              onChange={(event) => routing.setPairingCode(event.currentTarget.value)}
-            />
-            <div className="output-settings-actions">
-              {routing.connectionStatus === "connected" ? (
-                <button type="button" onClick={routing.disconnect}>Disconnect</button>
-              ) : (
-                <button className="button-with-icon" type="button" disabled={routing.connectionStatus === "connecting"} onClick={routing.connect}>
-                  <AppIcon name={routing.connectionStatus === "connecting" ? "loading" : "connect"} className={routing.connectionStatus === "connecting" ? "is-spinning" : ""} />
-                  {routing.connectionStatus === "connecting" ? "Pairing…" : "Pair with Mac"}
-                </button>
-              )}
-              {routing.connectionStatus === "connected" && routing.route !== "remote" ? (
-                <button type="button" onClick={routing.useRemoteOutput}>Use this Mac</button>
-              ) : null}
-            </div>
-          </div>
-          <p className="output-connection-status" data-status={routing.connectionStatus} role="status">
-            {routing.connectionStatus === "connected"
-              ? `${routing.remoteName || "Mac"} paired${routing.remoteState?.connected ? " and ready" : "; open its renderer and connect Navidrome"}`
-              : routing.connectionStatus === "connecting" ? "Contacting the Mac playback service…" : "Not paired"}
+          <p className="output-connection-status" data-status={serverReady ? "connected" : routing.connectionStatus} role="status">
+            {serverReady
+              ? `${routing.serverName || "Server"} ready · ${platformLabel} · ${routing.serverState?.deviceBackend || "system audio"}`
+              : routing.connectionStatus === "connecting"
+                ? "Discovering server audio…"
+                : "Server audio is unavailable"}
           </p>
-          {routing.connectionStatus === "connected" ? (
-            <div className="remote-output-device">
-              <label htmlFor="remote-output-device">Mac audio device</label>
+          {serverReady ? (
+            <div className="server-output-device">
+              <label htmlFor="server-output-device">Server audio device</label>
               <div>
                 <select
-                  id="remote-output-device"
-                  value={routing.remoteState?.selectedOutputDeviceId ?? ""}
-                  onChange={(event) => routing.selectRemoteDevice(event.currentTarget.value)}
+                  id="server-output-device"
+                  value={routing.serverState?.selectedOutputDeviceId ?? ""}
+                  disabled={!routing.serverState?.canSelectOutputDevice}
+                  onChange={(event) => routing.selectServerDevice(event.currentTarget.value)}
                 >
-                  <option value="">System default</option>
-                  {(routing.remoteState?.outputDevices ?? []).map((device) => (
+                  {(routing.serverState?.outputDevices ?? []).map((device) => (
                     <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
                   ))}
                 </select>
-                <button type="button" onClick={routing.refreshRemoteDevices}>Refresh devices</button>
+                <button type="button" onClick={routing.refreshServerDevices}>Refresh devices</button>
               </div>
-              <p className="output-settings-note">The standalone server changes the Mac’s current system output so CoreAudio playback follows this choice.</p>
-              {routing.remoteState?.outputError ? (
-                <p className="output-settings-error" role="alert">{routing.remoteState.outputError}</p>
+              {!routing.serverState?.canSelectOutputDevice ? (
+                <p className="output-settings-note">
+                  This server currently uses its system default output. Platform-specific device selection can be added through the server audio adapter.
+                </p>
+              ) : null}
+              {routing.serverState?.outputError ? (
+                <p className="output-settings-error" role="alert">{routing.serverState.outputError}</p>
               ) : null}
             </div>
-          ) : null}
+          ) : (
+            <div className="output-settings-actions">
+              <button className="button-with-icon" type="button" onClick={routing.reconnect}>
+                <AppIcon name="retry" />
+                Retry discovery
+              </button>
+            </div>
+          )}
           {routing.error ? <p className="output-settings-error" role="alert">{routing.error}</p> : null}
         </section>
 
-        <section className="output-server-section output-server-section--standalone" aria-label="Standalone output server">
-          <p className="eyebrow">Server-side renderer</p>
-          <h2>No Mac App required</h2>
+        <section className="output-server-section output-server-section--standalone" aria-label="Built-in server audio">
+          <p className="eyebrow">One service, one login</p>
+          <h2>Built into the Web server</h2>
           <code>npm run output-server</code>
-          <p>The standalone server owns the Mac audio device and Navidrome connection. Its terminal prints the phone address and pairing code.</p>
+          <p>
+            Open the URL printed by the server and use the normal Navidrome login page.
+            macOS currently uses CoreAudio; Linux and Windows backends plug into the same adapter contract.
+          </p>
         </section>
       </div>
     </div>

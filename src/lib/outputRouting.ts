@@ -1,7 +1,9 @@
-export type OutputRoute = "local" | "remote";
-export type RemoteConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+import type { Track } from "../types";
 
-export interface RemoteRendererState {
+export type OutputRoute = "local" | "server";
+export type ServerConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+export interface ServerRendererState {
   connected: boolean;
   title: string;
   artist: string;
@@ -15,22 +17,27 @@ export interface RemoteRendererState {
   outputDevices: Array<{ deviceId: string; label: string }>;
   selectedOutputDeviceId: string;
   outputError: string;
+  platform: string;
+  deviceBackend: string;
+  canSelectOutputDevice: boolean;
 }
 
-export type RemotePlaybackCommand =
-  | { type: "playQueue"; tracks: import("../types").Track[]; startIndex: number; position: number; autoplay: boolean; serverUrl: string }
+export type ServerPlaybackTrack = Track & { streamUrl: string };
+
+export type ServerPlaybackCommand =
+  | { type: "playQueue"; tracks: ServerPlaybackTrack[]; startIndex: number; position: number; autoplay: boolean; serverUrl: string }
   | { type: "play" | "pause" | "next" | "previous" | "toggleMute" | "stop" | "refreshDevices" }
   | { type: "seek"; position: number }
   | { type: "volume"; volume: number }
   | { type: "selectDevice"; deviceId: string };
 
-export function normalizeRemoteEndpoint(value: string, location?: Pick<Location, "protocol" | "hostname">): string {
+export function normalizeServerEndpoint(value: string, location?: Pick<Location, "protocol" | "hostname">): string {
   const trimmed = value.trim();
   const fallbackProtocol = location?.protocol === "https:" ? "https:" : "http:";
   const candidate = /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `${fallbackProtocol}//${trimmed}`;
   const url = new URL(candidate);
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error("The Mac playback address must use HTTP or HTTPS");
+    throw new Error("The server audio endpoint must use HTTP or HTTPS");
   }
   url.pathname = "";
   url.search = "";
@@ -39,14 +46,20 @@ export function normalizeRemoteEndpoint(value: string, location?: Pick<Location,
 }
 
 export function websocketUrl(endpoint: string): string {
-  const url = new URL(normalizeRemoteEndpoint(endpoint));
+  const url = new URL(normalizeServerEndpoint(endpoint));
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-  url.pathname = "/remote";
+  url.pathname = "/audio-control";
   return url.toString();
 }
 
-export function defaultRemoteEndpoint(location: Pick<Location, "protocol" | "hostname" | "port" | "origin">): string {
+export function defaultServerEndpoint(location: Pick<Location, "protocol" | "hostname" | "port" | "origin">): string {
   if (location.port === "17856") return location.origin;
   const protocol = location.protocol === "https:" ? "https:" : "http:";
   return `${protocol}//${location.hostname || "127.0.0.1"}:17856`;
+}
+
+export function serverEndpointCandidates(
+  location: Pick<Location, "protocol" | "hostname" | "port" | "origin">,
+): string[] {
+  return [...new Set([location.origin, defaultServerEndpoint(location)])];
 }

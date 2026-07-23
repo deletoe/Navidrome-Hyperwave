@@ -187,10 +187,10 @@ export function PlayerDock({
       <div className="player-dock__actions">
         {onOpenOutputSettings ? (
           <button
-            className={`icon-button${outputRoute === "remote" ? " is-active" : ""}`}
+            className={`icon-button${outputRoute === "server" ? " is-active" : ""}`}
             type="button"
-            aria-label={`Open audio output settings. ${outputRoute === "remote" ? "Playing on Mac" : "Playing on this device"}`}
-            title={outputRoute === "remote" ? "Output: Mac playback service" : "Output: this device"}
+            aria-label={`Open audio output settings. ${outputRoute === "server" ? "Playing on the server" : "Playing on this device"}`}
+            title={outputRoute === "server" ? "Output: server audio device" : "Output: this device"}
             onClick={onOpenOutputSettings}
           >
             <AppIcon name="output" />

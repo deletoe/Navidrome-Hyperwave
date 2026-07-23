@@ -21,11 +21,9 @@ function localOutput(): AudioOutputController {
 function routing(): OutputRoutingController {
   return {
     route: "local",
-    endpoint: "http://192.168.1.20:17856",
-    pairingCode: "123456",
     connectionStatus: "connected",
-    remoteName: "studio-mac",
-    remoteState: {
+    serverName: "studio-server",
+    serverState: {
       connected: true,
       title: "Blue Hour",
       artist: "Signal Club",
@@ -37,26 +35,27 @@ function routing(): OutputRoutingController {
       muted: false,
       serverUrl: "https://music.test",
       outputDevices: [
-        { deviceId: "speaker", label: "MacBook Pro Speakers" },
+        { deviceId: "speaker", label: "Server Speakers" },
         { deviceId: "headphones", label: "External Headphones" },
       ],
       selectedOutputDeviceId: "speaker",
       outputError: "",
+      platform: "linux",
+      deviceBackend: "pipewire",
+      canSelectOutputDevice: true,
     },
     player: {} as OutputRoutingController["player"],
-    setEndpoint: vi.fn(),
-    setPairingCode: vi.fn(),
-    connect: vi.fn(),
+    reconnect: vi.fn(),
     disconnect: vi.fn(),
     useLocalOutput: vi.fn(),
-    useRemoteOutput: vi.fn(),
-    refreshRemoteDevices: vi.fn(),
-    selectRemoteDevice: vi.fn(),
+    useServerOutput: vi.fn(),
+    refreshServerDevices: vi.fn(),
+    selectServerDevice: vi.fn(),
   };
 }
 
 describe("OutputSettingsDialog", () => {
-  it("switches between client and standalone server outputs without a Mac App dependency", async () => {
+  it("switches directly between client and built-in server outputs without another setup flow", async () => {
     const user = userEvent.setup();
     const activeRouting = routing();
     const activeLocalOutput = localOutput();
@@ -74,13 +73,13 @@ describe("OutputSettingsDialog", () => {
     await user.tab({ shift: true });
     expect(screen.getByRole("button", { name: "Refresh devices" })).toHaveFocus();
     expect(screen.getByRole("button", { name: /This device/ })).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: /studio-mac · Mac/ }));
-    expect(activeRouting.useRemoteOutput).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: /Server audio/ }));
+    expect(activeRouting.useServerOutput).toHaveBeenCalledOnce();
 
-    await user.selectOptions(screen.getByLabelText("Mac audio device"), "headphones");
-    expect(activeRouting.selectRemoteDevice).toHaveBeenCalledWith("headphones");
+    await user.selectOptions(screen.getByLabelText("Server audio device"), "headphones");
+    expect(activeRouting.selectServerDevice).toHaveBeenCalledWith("headphones");
     expect(screen.getByText("npm run output-server")).toBeInTheDocument();
-    expect(screen.queryByText(/installed app/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledOnce();
   });

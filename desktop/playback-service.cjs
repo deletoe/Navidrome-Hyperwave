@@ -20,8 +20,8 @@ const MIME_TYPES = {
   ".webp": "image/webp",
 };
 
-function createPairingCode() {
-  return String(crypto.randomInt(0, 1_000_000)).padStart(6, "0");
+function createControllerToken() {
+  return crypto.randomBytes(24).toString("hex");
 }
 
 function localIpv4Addresses() {
@@ -35,12 +35,26 @@ function sanitizeString(value, maximum = 300) {
   return typeof value === "string" ? value.slice(0, maximum) : "";
 }
 
+function sanitizeHttpUrl(value, maximum = 5000) {
+  const candidate = sanitizeString(value, maximum);
+  if (!candidate) return "";
+  try {
+    const url = new URL(candidate);
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
+}
+
 function sanitizeTrack(value) {
   if (!value || typeof value !== "object") return undefined;
   const id = sanitizeString(value.id, 500);
   const title = sanitizeString(value.title, 500);
   if (!id || !title) return undefined;
-  const track = { id, title };
+  const streamUrl = sanitizeHttpUrl(value.streamUrl);
+  if (!streamUrl) return undefined;
+  const track = { id, title, streamUrl };
   const stringFields = [
     "artist", "displayArtist", "album", "albumId", "artistId", "coverArt",
     "genre", "suffix", "contentType", "starred",
@@ -69,7 +83,7 @@ function sanitizeTrack(value) {
   return track;
 }
 
-function sanitizeRemoteCommand(value) {
+function sanitizePlaybackCommand(value) {
   if (!value || typeof value !== "object") return undefined;
   const type = sanitizeString(value.type, 40);
   if (type === "playQueue") {
@@ -113,15 +127,14 @@ function safeStaticPath(root, requestPath) {
   return resolved.startsWith(normalizedRoot) ? resolved : undefined;
 }
 
-class RemotePlaybackServer {
+class PlaybackService {
   constructor({ distPath, onCommand, port = DEFAULT_PORT, hostname = os.hostname() }) {
     this.distPath = distPath;
     this.onCommand = onCommand;
     this.requestedPort = port;
     this.hostname = hostname;
-    this.pairingCode = createPairingCode();
     this.clients = new Set();
-    this.pairingFailures = new Map();
+    this.controllerTokens = new Map();
     this.playbackState = {
       connected: false,
       title: "",
@@ -136,18 +149,32 @@ class RemotePlaybackServer {
       outputDevices: [],
       selectedOutputDeviceId: "",
       outputError: "",
+      platform: "",
+      deviceBackend: "",
+      canSelectOutputDevice: false,
     };
   }
 
   async start() {
     if (this.httpServer) return this.getInfo();
-    this.webSocketServer = new WebSocketServer({ noServer: true, maxPayload: 512 * 1024 });
+    this.webSocketServer = new WebSocketServer({ noServer: true, maxPayload: 3 * 1024 * 1024 });
     this.webSocketServer.on("connection", (socket, request) => this.handleSocket(socket, request));
     this.httpServer = http.createServer((request, response) => this.handleHttp(request, response));
     this.httpServer.on("upgrade", (request, socket, head) => {
       let pathname = "";
       try { pathname = new URL(request.url || "/", "http://localhost").pathname; } catch { /* no-op */ }
-      if (pathname !== "/remote") {
+      if (pathname !== "/audio-control") {
+        socket.destroy();
+        return;
+      }
+      let token = "";
+      try {
+        token = new URL(request.url || "/", "http://localhost").searchParams.get("token") || "";
+      } catch {
+        socket.destroy();
+        return;
+      }
+      if (!this.consumeControllerToken(token)) {
         socket.destroy();
         return;
       }
@@ -175,13 +202,16 @@ class RemotePlaybackServer {
     this.httpServer = undefined;
   }
 
-  rotatePairingCode() {
-    this.pairingCode = createPairingCode();
-    for (const client of this.clients) {
-      client.paired = false;
-      this.send(client, { type: "pairingRequired" });
-    }
-    return this.pairingCode;
+  issueControllerToken() {
+    const token = createControllerToken();
+    this.controllerTokens.set(token, Date.now() + 2 * 60_000);
+    return token;
+  }
+
+  consumeControllerToken(token) {
+    const expiresAt = this.controllerTokens.get(token);
+    this.controllerTokens.delete(token);
+    return Boolean(expiresAt && expiresAt > Date.now());
   }
 
   getInfo() {
@@ -191,9 +221,8 @@ class RemotePlaybackServer {
       enabled: Boolean(this.httpServer?.listening),
       hostname: this.hostname,
       port,
-      pairingCode: this.pairingCode,
       urls: localIpv4Addresses().map((address) => `http://${address}:${port}`),
-      connectedControllers: [...this.clients].filter((client) => client.paired).length,
+      connectedControllers: this.clients.size,
     };
   }
 
@@ -224,63 +253,31 @@ class RemotePlaybackServer {
         1000,
       ),
       outputError: sanitizeString(nextState?.outputError, 1000),
+      platform: sanitizeString(nextState?.platform, 80),
+      deviceBackend: sanitizeString(nextState?.deviceBackend, 120),
+      canSelectOutputDevice: Boolean(nextState?.canSelectOutputDevice),
     };
     this.broadcast({ type: "state", state: this.playbackState });
   }
 
   handleSocket(socket, request) {
-    socket.paired = false;
-    const remoteAddress = request?.socket?.remoteAddress || "unknown";
-    const recentFailure = this.pairingFailures.get(remoteAddress);
-    if (recentFailure && recentFailure.resetAt > Date.now() && recentFailure.count >= 10) {
-      this.send(socket, { type: "error", code: "PAIRING_RATE_LIMITED", message: "Too many pairing attempts; try again in one minute" });
-      socket.close(1008, "Pairing rate limited");
-      return;
-    }
     this.clients.add(socket);
     this.send(socket, {
       type: "hello",
       renderer: { hostname: this.hostname, ready: this.playbackState.connected },
     });
+    this.send(socket, { type: "state", state: this.playbackState });
     socket.on("message", (payload) => {
       let message;
       try { message = JSON.parse(payload.toString("utf8")); } catch { return; }
-      if (!socket.paired) {
-        if (message?.type !== "pair" || sanitizeString(message.pin, 20) !== this.pairingCode) {
-          const previous = this.pairingFailures.get(remoteAddress);
-          const resetAt = previous && previous.resetAt > Date.now()
-            ? previous.resetAt
-            : Date.now() + 60_000;
-          this.pairingFailures.set(remoteAddress, {
-            count: previous && previous.resetAt > Date.now() ? previous.count + 1 : 1,
-            resetAt,
-          });
-          this.send(socket, { type: "error", code: "PAIRING_FAILED", message: "Pairing code is incorrect" });
-          return;
-        }
-        socket.paired = true;
-        this.pairingFailures.delete(remoteAddress);
-        this.send(socket, { type: "paired", renderer: { hostname: this.hostname } });
-        this.send(socket, { type: "state", state: this.playbackState });
-        return;
-      }
       if (message?.type !== "command") return;
-      const command = sanitizeRemoteCommand(message.command);
+      const command = sanitizePlaybackCommand(message.command);
       if (!command) {
         this.send(socket, { type: "error", code: "INVALID_COMMAND", message: "Playback command was rejected" });
         return;
       }
       if (!this.playbackState.connected) {
-        this.send(socket, { type: "error", code: "RENDERER_NOT_READY", message: "Open and connect the Mac app first" });
-        return;
-      }
-      if (
-        command.type === "playQueue"
-        && command.serverUrl
-        && this.playbackState.serverUrl
-        && command.serverUrl.replace(/\/+$/, "") !== this.playbackState.serverUrl.replace(/\/+$/, "")
-      ) {
-        this.send(socket, { type: "error", code: "SERVER_MISMATCH", message: "The Mac app is connected to a different Navidrome server" });
+        this.send(socket, { type: "error", code: "RENDERER_NOT_READY", message: "The server audio renderer is not ready" });
         return;
       }
       this.onCommand(command);
@@ -298,11 +295,39 @@ class RemotePlaybackServer {
     }
     let pathname;
     try { pathname = new URL(request.url || "/", "http://localhost").pathname; } catch { pathname = "/"; }
-    if (pathname === "/api/remote/status") {
+    if (pathname === "/api/audio/session") {
+      const origin = request.headers.origin;
+      let hostName = "";
+      try {
+        hostName = new URL(`http://${request.headers.host || "localhost"}`).hostname;
+      } catch {
+        hostName = "";
+      }
+      let originAllowed = !origin;
+      try {
+        originAllowed = originAllowed || new URL(origin).hostname === hostName;
+      } catch {
+        originAllowed = false;
+      }
+      if (!originAllowed) {
+        response.writeHead(403, { "Cache-Control": "no-store" });
+        response.end();
+        return;
+      }
+      const payload = JSON.stringify({ token: this.issueControllerToken() });
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+        ...(origin ? { "Access-Control-Allow-Origin": origin, Vary: "Origin" } : {}),
+      });
+      response.end(method === "HEAD" ? undefined : payload);
+      return;
+    }
+    if (pathname === "/api/audio/status") {
       const payload = JSON.stringify({
         hostname: this.hostname,
         port: this.getInfo().port,
-        pairingRequired: true,
+        automaticSession: true,
         rendererReady: this.playbackState.connected,
       });
       response.writeHead(200, {
@@ -337,7 +362,7 @@ class RemotePlaybackServer {
 
   broadcast(message) {
     for (const client of this.clients) {
-      if (client.paired && client.readyState === WebSocket.OPEN) this.send(client, message);
+      if (client.readyState === WebSocket.OPEN) this.send(client, message);
     }
   }
 
@@ -348,8 +373,9 @@ class RemotePlaybackServer {
 
 module.exports = {
   DEFAULT_PORT,
-  RemotePlaybackServer,
-  createPairingCode,
+  PlaybackService,
+  createControllerToken,
+  sanitizeHttpUrl,
   safeStaticPath,
-  sanitizeRemoteCommand,
+  sanitizePlaybackCommand,
 };

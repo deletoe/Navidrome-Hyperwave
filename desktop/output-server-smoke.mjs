@@ -50,9 +50,6 @@ const outputServer = spawn("./node_modules/.bin/electron", ["desktop/output-serv
   cwd: new URL("../", import.meta.url),
   env: {
     ...process.env,
-    MY_NAVIDROME_URL: `http://127.0.0.1:${navidromePort}`,
-    MY_NAVIDROME_USERNAME: "smoke",
-    MY_NAVIDROME_PASSWORD: "smoke-secret",
     MY_NAVIDROME_OUTPUT_PORT: String(outputPort),
   },
   stdio: ["ignore", "pipe", "pipe"],
@@ -62,10 +59,9 @@ let combinedOutput = "";
 outputServer.stdout.on("data", (chunk) => { combinedOutput += chunk; });
 outputServer.stderr.on("data", (chunk) => { combinedOutput += chunk; });
 
-async function waitForPairingCode() {
+async function waitForServer() {
   for (let attempt = 0; attempt < 120; attempt += 1) {
-    const match = combinedOutput.match(/Pairing code: (\d{6})/);
-    if (match) return match[1];
+    if (combinedOutput.includes("Renderer status: ready")) return;
     if (outputServer.exitCode !== null) throw new Error(`Output server exited early:\n${combinedOutput}`);
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
@@ -90,16 +86,23 @@ async function waitForMessage(socket, predicate, timeoutMs = 8_000) {
 }
 
 try {
-  const pairingCode = await waitForPairingCode();
-  const socket = new WebSocket(`ws://127.0.0.1:${outputPort}/remote`);
+  await waitForServer();
+  const sessionResponse = await fetch(`http://127.0.0.1:${outputPort}/api/audio/session`);
+  const { token } = await sessionResponse.json();
+  const socket = new WebSocket(`ws://127.0.0.1:${outputPort}/audio-control?token=${token}`);
+  const helloMessage = waitForMessage(socket, (message) => message.type === "hello");
   await once(socket, "open");
-  socket.send(JSON.stringify({ type: "pair", pin: pairingCode }));
-  await waitForMessage(socket, (message) => message.type === "paired");
+  await helloMessage;
   socket.send(JSON.stringify({
     type: "command",
     command: {
       type: "playQueue",
-      tracks: [{ id: "smoke-track", title: "Output server smoke", duration: 3 }],
+      tracks: [{
+        id: "smoke-track",
+        title: "Output server smoke",
+        duration: 3,
+        streamUrl: `http://127.0.0.1:${navidromePort}/rest/stream.view?id=smoke-track`,
+      }],
       startIndex: 0,
       position: 0,
       autoplay: true,
@@ -132,7 +135,7 @@ try {
       && !message.state?.outputError,
   );
   console.log(JSON.stringify({
-    paired: true,
+    automaticSession: true,
     playing: stateMessage.state.title,
     duration: stateMessage.state.duration,
     outputDevices: deviceMessage.state.outputDevices.map((device) => device.label),

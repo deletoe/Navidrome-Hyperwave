@@ -2,33 +2,28 @@ import { useEffect, useMemo, useRef, useState, type Dispatch } from "react";
 
 import type { AudioPlayerController } from "./useAudioPlayer";
 import {
-  defaultRemoteEndpoint,
-  normalizeRemoteEndpoint,
+  serverEndpointCandidates,
   websocketUrl,
   type OutputRoute,
-  type RemoteConnectionStatus,
-  type RemotePlaybackCommand,
-  type RemoteRendererState,
+  type ServerConnectionStatus,
+  type ServerPlaybackCommand,
+  type ServerRendererState,
 } from "../lib/outputRouting";
 import { getCurrentTrack, type QueueAction, type QueueState } from "../state/playerQueue";
 
 export interface OutputRoutingController {
   route: OutputRoute;
-  endpoint: string;
-  pairingCode: string;
-  connectionStatus: RemoteConnectionStatus;
-  remoteState?: RemoteRendererState;
-  remoteName?: string;
+  connectionStatus: ServerConnectionStatus;
+  serverState?: ServerRendererState;
+  serverName?: string;
   error?: string;
   player: AudioPlayerController;
-  setEndpoint(value: string): void;
-  setPairingCode(value: string): void;
-  connect(): void;
+  reconnect(): void;
   disconnect(): void;
   useLocalOutput(): void;
-  useRemoteOutput(): void;
-  refreshRemoteDevices(): void;
-  selectRemoteDevice(deviceId: string): void;
+  useServerOutput(): void;
+  refreshServerDevices(): void;
+  selectServerDevice(deviceId: string): void;
 }
 
 export interface UseOutputRoutingOptions {
@@ -36,24 +31,25 @@ export interface UseOutputRoutingOptions {
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
   serverUrl: string;
+  streamUrlForTrack(id: string): string;
 }
 
-const REMOTE_VISUALIZER: AudioPlayerController["visualizer"] = {
+const SERVER_VISUALIZER: AudioPlayerController["visualizer"] = {
   supported: false,
   status: "unavailable",
-  error: "Visualization runs on the Mac playback device",
+  error: "Visualization runs on the server playback device",
   async activate() {},
   readFrame() { return undefined; },
 };
 
-const REMOTE_PROCESSING: AudioPlayerController["audioProcessing"] = {
+const SERVER_PROCESSING: AudioPlayerController["audioProcessing"] = {
   supported: false,
   status: "unavailable",
-  error: "EQ and stereo fusion are controlled by the Mac playback device",
+  error: "EQ and stereo fusion are controlled by the server playback device",
   async activate() {},
 };
 
-function emptyRemoteState(): RemoteRendererState {
+function emptyServerState(): ServerRendererState {
   return {
     connected: false,
     title: "",
@@ -68,6 +64,9 @@ function emptyRemoteState(): RemoteRendererState {
     outputDevices: [],
     selectedOutputDeviceId: "",
     outputError: "",
+    platform: "",
+    deviceBackend: "",
+    canSelectOutputDevice: false,
   };
 }
 
@@ -76,185 +75,217 @@ export function useOutputRouting({
   queueState,
   dispatch,
   serverUrl,
+  streamUrlForTrack,
 }: UseOutputRoutingOptions): OutputRoutingController {
   const [route, setRoute] = useState<OutputRoute>("local");
-  const [endpoint, setEndpointState] = useState(() => defaultRemoteEndpoint(window.location));
-  const [pairingCode, setPairingCodeState] = useState("");
-  const [connectionStatus, setConnectionStatus] = useState<RemoteConnectionStatus>("disconnected");
-  const [remoteState, setRemoteState] = useState<RemoteRendererState>();
-  const [remoteName, setRemoteName] = useState<string>();
+  const [connectionStatus, setConnectionStatus] = useState<ServerConnectionStatus>("disconnected");
+  const [serverState, setServerState] = useState<ServerRendererState>();
+  const [serverName, setServerName] = useState<string>();
   const [error, setError] = useState<string>();
   const socketRef = useRef<WebSocket | undefined>(undefined);
   const routeRef = useRef<OutputRoute>(route);
-  const remoteStateRef = useRef<RemoteRendererState>(emptyRemoteState());
+  const serverStateRef = useRef<ServerRendererState>(emptyServerState());
+  const connectionGeneration = useRef(0);
   routeRef.current = route;
-  remoteStateRef.current = remoteState ?? emptyRemoteState();
+  serverStateRef.current = serverState ?? emptyServerState();
 
-  function sendCommand(command: RemotePlaybackCommand): void {
+  function sendCommand(command: ServerPlaybackCommand): void {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN || connectionStatus !== "connected") {
-      setError("Connect and pair with the Mac playback service first");
+      setError("The server audio renderer is not available");
       return;
     }
     socket.send(JSON.stringify({ type: "command", command }));
   }
 
   function connect(): void {
-    let normalizedEndpoint: string;
-    try {
-      normalizedEndpoint = normalizeRemoteEndpoint(endpoint, window.location);
-    } catch (endpointError) {
-      setConnectionStatus("error");
-      setError(endpointError instanceof Error ? endpointError.message : "The Mac address is invalid");
-      return;
-    }
-    if (!/^\d{6}$/.test(pairingCode)) {
-      setConnectionStatus("error");
-      setError("Enter the six-digit pairing code shown by the output server");
-      return;
-    }
+    const generation = ++connectionGeneration.current;
     socketRef.current?.close();
-    setEndpointState(normalizedEndpoint);
     setConnectionStatus("connecting");
     setError(undefined);
-    const socket = new WebSocket(websocketUrl(normalizedEndpoint));
-    socketRef.current = socket;
-    socket.addEventListener("open", () => {
-      socket.send(JSON.stringify({ type: "pair", pin: pairingCode }));
-    });
-    socket.addEventListener("message", (event) => {
-      let message: Record<string, unknown>;
-      try { message = JSON.parse(String(event.data)) as Record<string, unknown>; } catch { return; }
-      if (message.type === "hello") {
-        const renderer = message.renderer as { hostname?: unknown } | undefined;
-        if (typeof renderer?.hostname === "string") setRemoteName(renderer.hostname);
-        return;
+    void (async () => {
+      let lastError: unknown;
+      for (const endpoint of serverEndpointCandidates(window.location)) {
+        try {
+          const response = await fetch(`${endpoint}/api/audio/session`, {
+            method: "GET",
+            headers: { Accept: "application/json" },
+            credentials: "omit",
+            referrerPolicy: "no-referrer",
+          });
+          if (!response.ok) throw new Error(`Server audio session failed (${response.status})`);
+          const { token } = await response.json() as { token?: unknown };
+          if (typeof token !== "string" || !token) throw new Error("Server audio session token is missing");
+          return { endpoint, token };
+        } catch (candidateError) {
+          lastError = candidateError;
+        }
       }
-      if (message.type === "paired") {
-        setConnectionStatus("connected");
-        setError(undefined);
-        return;
-      }
-      if (message.type === "state") {
-        const state = message.state as Partial<RemoteRendererState> | undefined;
-        if (!state) return;
-        const nextState: RemoteRendererState = {
-          connected: Boolean(state.connected),
-          title: typeof state.title === "string" ? state.title : "",
-          artist: typeof state.artist === "string" ? state.artist : "",
-          trackId: typeof state.trackId === "string" ? state.trackId : "",
-          isPlaying: Boolean(state.isPlaying),
-          progress: Math.max(0, Number(state.progress) || 0),
-          duration: Math.max(0, Number(state.duration) || 0),
-          volume: Math.min(Math.max(Number(state.volume) || 0, 0), 1),
-          muted: Boolean(state.muted),
-          serverUrl: typeof state.serverUrl === "string" ? state.serverUrl : "",
-          outputDevices: Array.isArray(state.outputDevices)
-            ? state.outputDevices.flatMap((device) => {
-              if (!device || typeof device.deviceId !== "string") return [];
-              return [{
-                deviceId: device.deviceId,
-                label: typeof device.label === "string" ? device.label : "Mac audio output",
-              }];
-            })
-            : [],
-          selectedOutputDeviceId: typeof state.selectedOutputDeviceId === "string"
-            ? state.selectedOutputDeviceId
-            : "",
-          outputError: typeof state.outputError === "string" ? state.outputError : "",
-        };
-        remoteStateRef.current = nextState;
-        setRemoteState(nextState);
-        return;
-      }
-      if (message.type === "error") {
-        setError(typeof message.message === "string" ? message.message : "The Mac playback service rejected the request");
-        if (message.code === "PAIRING_FAILED") setConnectionStatus("error");
-      }
-    });
-    socket.addEventListener("close", () => {
-      if (socketRef.current !== socket) return;
-      setConnectionStatus("disconnected");
-      if (routeRef.current === "remote") setRoute("local");
-    });
-    socket.addEventListener("error", () => {
-      if (socketRef.current !== socket) return;
-      setConnectionStatus("error");
-      setError("Could not reach the Mac playback service on the local network");
-    });
+      throw lastError instanceof Error ? lastError : new Error("Server audio is unavailable");
+    })()
+      .then(({ endpoint, token }) => {
+        if (generation !== connectionGeneration.current) return;
+        const socketAddress = new URL(websocketUrl(endpoint));
+        socketAddress.searchParams.set("token", token);
+        const socket = new WebSocket(socketAddress);
+        socketRef.current = socket;
+        socket.addEventListener("message", (event) => {
+          let message: Record<string, unknown>;
+          try { message = JSON.parse(String(event.data)) as Record<string, unknown>; } catch { return; }
+          if (message.type === "hello") {
+            const renderer = message.renderer as { hostname?: unknown } | undefined;
+            if (typeof renderer?.hostname === "string") setServerName(renderer.hostname);
+            setConnectionStatus("connected");
+            setError(undefined);
+            return;
+          }
+          if (message.type === "state") {
+            const state = message.state as Partial<ServerRendererState> | undefined;
+            if (!state) return;
+            const nextState: ServerRendererState = {
+              connected: Boolean(state.connected),
+              title: typeof state.title === "string" ? state.title : "",
+              artist: typeof state.artist === "string" ? state.artist : "",
+              trackId: typeof state.trackId === "string" ? state.trackId : "",
+              isPlaying: Boolean(state.isPlaying),
+              progress: Math.max(0, Number(state.progress) || 0),
+              duration: Math.max(0, Number(state.duration) || 0),
+              volume: Math.min(Math.max(Number(state.volume) || 0, 0), 1),
+              muted: Boolean(state.muted),
+              serverUrl: typeof state.serverUrl === "string" ? state.serverUrl : "",
+              outputDevices: Array.isArray(state.outputDevices)
+                ? state.outputDevices.flatMap((device) => {
+                  if (!device || typeof device.deviceId !== "string") return [];
+                  return [{
+                    deviceId: device.deviceId,
+                    label: typeof device.label === "string" ? device.label : "Server audio output",
+                  }];
+                })
+                : [],
+              selectedOutputDeviceId: typeof state.selectedOutputDeviceId === "string"
+                ? state.selectedOutputDeviceId
+                : "",
+              outputError: typeof state.outputError === "string" ? state.outputError : "",
+              platform: typeof state.platform === "string" ? state.platform : "",
+              deviceBackend: typeof state.deviceBackend === "string" ? state.deviceBackend : "",
+              canSelectOutputDevice: Boolean(state.canSelectOutputDevice),
+            };
+            serverStateRef.current = nextState;
+            setServerState(nextState);
+            return;
+          }
+          if (message.type === "error") {
+            setError(typeof message.message === "string" ? message.message : "The server rejected the playback request");
+          }
+        });
+        socket.addEventListener("close", () => {
+          if (generation !== connectionGeneration.current || socketRef.current !== socket) return;
+          setConnectionStatus("disconnected");
+          if (routeRef.current === "server") setRoute("local");
+        });
+        socket.addEventListener("error", () => {
+          if (generation !== connectionGeneration.current || socketRef.current !== socket) return;
+          setConnectionStatus("error");
+          setError("The built-in server audio renderer could not be reached");
+        });
+      })
+      .catch((sessionError) => {
+        if (generation !== connectionGeneration.current) return;
+        setConnectionStatus("error");
+        setError(sessionError instanceof Error ? sessionError.message : "Server audio is unavailable");
+      });
   }
 
   function disconnect(): void {
+    connectionGeneration.current += 1;
     socketRef.current?.close();
     socketRef.current = undefined;
     setRoute("local");
     setConnectionStatus("disconnected");
-    setRemoteState(undefined);
+    setServerState(undefined);
     setError(undefined);
   }
 
   function useLocalOutput(): void {
-    if (route === "remote" && remoteStateRef.current.isPlaying) sendCommand({ type: "pause" });
+    const wasPlaying = route === "server" && serverStateRef.current.isPlaying;
+    const resumeAt = serverStateRef.current.progress;
+    if (route === "server") sendCommand({ type: "pause" });
     setRoute("local");
+    if (route === "server") {
+      localPlayer.seek(resumeAt);
+      if (wasPlaying) void localPlayer.play();
+    }
   }
 
-  function useRemoteOutput(): void {
-    if (connectionStatus !== "connected") {
-      setError("Pair with the Mac playback service before selecting it");
+  function useServerOutput(): void {
+    if (connectionStatus !== "connected" || !serverStateRef.current.connected) {
+      setError("Server audio is not ready");
       return;
     }
+    const wasPlaying = localPlayer.isPlaying;
+    const resumeAt = localPlayer.progress;
     localPlayer.pause();
-    setRoute("remote");
+    setRoute("server");
+    playServerQueue(resumeAt, wasPlaying);
   }
 
-  useEffect(() => () => socketRef.current?.close(), []);
+  useEffect(() => {
+    connect();
+    return () => {
+      connectionGeneration.current += 1;
+      socketRef.current?.close();
+    };
+  }, []);
 
   useEffect(() => {
-    if (!remoteState?.trackId || route !== "remote") return;
-    const index = queueState.tracks.findIndex((track) => track.id === remoteState.trackId);
+    if (!serverState?.trackId || route !== "server") return;
+    const index = queueState.tracks.findIndex((track) => track.id === serverState.trackId);
     if (index >= 0 && index !== queueState.currentIndex) dispatch({ type: "select", index });
-  }, [dispatch, queueState.currentIndex, queueState.tracks, remoteState?.trackId, route]);
+  }, [dispatch, queueState.currentIndex, queueState.tracks, route, serverState?.trackId]);
 
-  function playRemoteQueue(): void {
+  function playServerQueue(positionOverride?: number, autoplay = true): void {
     if (queueState.tracks.length === 0) return;
     sendCommand({
       type: "playQueue",
-      tracks: queueState.tracks,
+      tracks: queueState.tracks.map((track) => ({
+        ...track,
+        streamUrl: streamUrlForTrack(track.id),
+      })),
       startIndex: Math.max(0, queueState.currentIndex),
-      position: remoteStateRef.current.trackId === getCurrentTrack(queueState)?.id
-        ? remoteStateRef.current.progress
-        : 0,
-      autoplay: true,
+      position: positionOverride ?? (
+        serverStateRef.current.trackId === getCurrentTrack(queueState)?.id
+          ? serverStateRef.current.progress
+          : 0
+      ),
+      autoplay,
       serverUrl,
     });
   }
 
-  const remotePlayer = useMemo<AudioPlayerController>(() => ({
+  const serverPlayer = useMemo<AudioPlayerController>(() => ({
     audioRef: localPlayer.audioRef,
-    isPlaying: remoteState?.isPlaying ?? false,
-    progress: remoteState?.progress ?? 0,
-    duration: remoteState?.duration ?? getCurrentTrack(queueState)?.duration ?? 0,
-    volume: remoteState?.volume ?? 0.86,
-    muted: remoteState?.muted ?? false,
+    isPlaying: serverState?.isPlaying ?? false,
+    progress: serverState?.progress ?? 0,
+    duration: serverState?.duration ?? getCurrentTrack(queueState)?.duration ?? 0,
+    volume: serverState?.volume ?? 0.86,
+    muted: serverState?.muted ?? false,
     error,
     output: localPlayer.output,
-    visualizer: REMOTE_VISUALIZER,
-    audioProcessing: REMOTE_PROCESSING,
-    async play() {
-      playRemoteQueue();
-    },
+    visualizer: SERVER_VISUALIZER,
+    audioProcessing: SERVER_PROCESSING,
+    async play() { playServerQueue(); },
     pause() { sendCommand({ type: "pause" }); },
     async toggle() {
-      if (remoteStateRef.current.isPlaying) sendCommand({ type: "pause" });
-      else if (remoteStateRef.current.trackId === getCurrentTrack(queueState)?.id) sendCommand({ type: "play" });
-      else playRemoteQueue();
+      if (serverStateRef.current.isPlaying) sendCommand({ type: "pause" });
+      else if (serverStateRef.current.trackId === getCurrentTrack(queueState)?.id) sendCommand({ type: "play" });
+      else playServerQueue();
     },
     next() {
       dispatch({ type: "next" });
       sendCommand({ type: "next" });
     },
     previous() {
-      if (remoteStateRef.current.progress > 3) sendCommand({ type: "seek", position: 0 });
+      if (serverStateRef.current.progress > 3) sendCommand({ type: "seek", position: 0 });
       else {
         dispatch({ type: "previous" });
         sendCommand({ type: "previous" });
@@ -268,24 +299,20 @@ export function useOutputRouting({
     handleLoadedMetadata() {},
     handleEnded() {},
     handleError() {},
-  }), [dispatch, error, localPlayer.audioRef, localPlayer.output, queueState, remoteState, serverUrl]);
+  }), [dispatch, error, localPlayer.audioRef, localPlayer.output, queueState, serverState, serverUrl, streamUrlForTrack]);
 
   return {
     route,
-    endpoint,
-    pairingCode,
     connectionStatus,
-    remoteState,
-    remoteName,
+    serverState,
+    serverName,
     error,
-    player: route === "remote" ? remotePlayer : localPlayer,
-    setEndpoint: setEndpointState,
-    setPairingCode: (value) => setPairingCodeState(value.replace(/\D/g, "").slice(0, 6)),
-    connect,
+    player: route === "server" ? serverPlayer : localPlayer,
+    reconnect: connect,
     disconnect,
     useLocalOutput,
-    useRemoteOutput,
-    refreshRemoteDevices: () => sendCommand({ type: "refreshDevices" }),
-    selectRemoteDevice: (deviceId) => sendCommand({ type: "selectDevice", deviceId }),
+    useServerOutput,
+    refreshServerDevices: () => sendCommand({ type: "refreshDevices" }),
+    selectServerDevice: (deviceId) => sendCommand({ type: "selectDevice", deviceId }),
   };
 }

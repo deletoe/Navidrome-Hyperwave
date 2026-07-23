@@ -1,20 +1,13 @@
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain, session } = require("electron");
-const { RemotePlaybackServer } = require("./remote-server.cjs");
+const { PlaybackService } = require("./playback-service.cjs");
 const { withDesktopCorsHeaders } = require("./security.cjs");
-const {
-  readConfiguration,
-  streamUrl,
-} = require("./output-server-config.cjs");
-const {
-  listOutputDevices,
-  selectOutputDevice,
-} = require("./coreaudio.cjs");
-const config = readConfiguration(process.env);
+const { createServerAudioDeviceAdapter } = require("./server-audio-devices.cjs");
+const audioDevices = createServerAudioDeviceAdapter();
 const outputPort = Math.max(1, Number(process.env.MY_NAVIDROME_OUTPUT_PORT) || 17856);
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 let rendererWindow;
-let remoteServer;
+let playbackService;
 let rendererReady = false;
 let rendererState = {
   title: "",
@@ -25,6 +18,7 @@ let rendererState = {
   duration: 0,
   volume: 0.86,
   muted: false,
+  serverUrl: "",
   outputDevices: [],
   selectedOutputDeviceId: "",
   outputError: "",
@@ -32,14 +26,16 @@ let rendererState = {
 
 function publicState() {
   return {
-    connected: rendererReady && Boolean(config.serverUrl && config.auth),
+    connected: rendererReady,
     ...rendererState,
-    serverUrl: config.serverUrl,
+    platform: audioDevices.platform,
+    deviceBackend: audioDevices.backend,
+    canSelectOutputDevice: audioDevices.canSelect,
   };
 }
 
 function publishState() {
-  remoteServer?.updatePlaybackState(publicState());
+  playbackService?.updatePlaybackState(publicState());
 }
 
 function sendToRenderer(command) {
@@ -48,50 +44,48 @@ function sendToRenderer(command) {
   return true;
 }
 
-function handleRemoteCommand(command) {
+function handlePlaybackCommand(command) {
   if (command.type === "refreshDevices") {
-    void refreshCoreAudioDevices();
+    void refreshServerAudioDevices();
     return;
   }
   if (command.type === "selectDevice") {
-    void selectCoreAudioDevice(command.deviceId);
+    void selectServerAudioDevice(command.deviceId);
     return;
   }
   if (command.type === "playQueue") {
-    if (!config.serverUrl || !config.auth) return;
+    rendererState.serverUrl = command.serverUrl;
+    publishState();
     sendToRenderer({
       ...command,
-      tracks: command.tracks.map((track) => ({
-        ...track,
-        streamUrl: streamUrl(config, track.id),
-      })),
+      tracks: command.tracks,
     });
     return;
   }
   sendToRenderer(command);
 }
 
-async function refreshCoreAudioDevices() {
+async function refreshServerAudioDevices() {
   try {
-    const devices = await listOutputDevices();
+    const devices = await audioDevices.list();
     rendererState.outputDevices = devices.map(({ deviceId, label }) => ({ deviceId, label }));
     rendererState.selectedOutputDeviceId = devices.find((device) => device.selected)?.deviceId || "";
     rendererState.outputError = "";
   } catch (error) {
-    rendererState.outputError = error instanceof Error ? error.message : "CoreAudio devices could not be listed";
+    rendererState.outputError = error instanceof Error ? error.message : "Server audio devices could not be listed";
   }
   publishState();
 }
 
-async function selectCoreAudioDevice(deviceId) {
+async function selectServerAudioDevice(deviceId) {
   try {
-    const devices = await selectOutputDevice(deviceId);
+    const devices = await audioDevices.select(deviceId);
     rendererState.outputDevices = devices.map(({ deviceId, label }) => ({ deviceId, label }));
     rendererState.selectedOutputDeviceId = devices.find((device) => device.selected)?.deviceId || "";
     rendererState.outputError = "";
     sendToRenderer({ type: "selectDevice", deviceId: "" });
   } catch (error) {
-    rendererState.outputError = error instanceof Error ? error.message : "The CoreAudio output could not be selected";
+    rendererState.outputError = error instanceof Error ? error.message : "The server audio output could not be selected";
   }
   publishState();
 }
@@ -138,15 +132,8 @@ function printStartup(info) {
   console.log(`\n${line}`);
   console.log("My Navidrome standalone output server");
   console.log(line);
-  if (!config.serverUrl || !config.auth) {
-    console.log("Renderer status: NOT CONFIGURED");
-    console.log("Restart with MY_NAVIDROME_URL plus either:");
-    console.log("  MY_NAVIDROME_USERNAME and MY_NAVIDROME_PASSWORD");
-    console.log("  MY_NAVIDROME_API_KEY");
-  } else {
-    console.log(`Renderer status: ready for ${config.serverUrl}`);
-  }
-  console.log(`Pairing code: ${info.pairingCode}`);
+  console.log(`Renderer status: ready (${audioDevices.platform}/${audioDevices.backend})`);
+  console.log("Navidrome login: use the normal login page in the browser");
   if (info.urls.length === 0) console.log(`Phone URL: http://127.0.0.1:${info.port} (no LAN address found)`);
   else info.urls.forEach((url) => console.log(`Phone URL: ${url}`));
   console.log("Press Control-C to stop the server.");
@@ -178,16 +165,16 @@ app.whenReady().then(async () => {
   app.setName("My Navidrome Output Server");
   configureSession();
   await createRenderer();
-  remoteServer = new RemotePlaybackServer({
+  playbackService = new PlaybackService({
     distPath: path.join(__dirname, "..", "dist"),
-    onCommand: handleRemoteCommand,
+    onCommand: handlePlaybackCommand,
     port: outputPort,
   });
-  const info = await remoteServer.start();
-  await refreshCoreAudioDevices();
+  const info = await playbackService.start();
+  await refreshServerAudioDevices();
   publishState();
   printStartup(info);
 });
 
 app.on("window-all-closed", (event) => event.preventDefault());
-app.on("before-quit", () => remoteServer?.stop());
+app.on("before-quit", () => playbackService?.stop());
