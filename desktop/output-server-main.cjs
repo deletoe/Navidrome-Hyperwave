@@ -2,9 +2,12 @@ const path = require("node:path");
 const { PlaybackService } = require("./playback-service.cjs");
 const { createServerAudioDeviceAdapter } = require("./server-audio-devices.cjs");
 const { createPlaybackEngine } = require("./playback-engine.cjs");
+const { parseBoundNavidrome } = require("./bound-navidrome.cjs");
 
 const audioDevices = createServerAudioDeviceAdapter();
+const boundNavidrome = parseBoundNavidrome();
 const outputPort = Math.max(1, Number(process.env.MY_NAVIDROME_OUTPUT_PORT) || 5173);
+const publicPort = Math.max(1, Number(process.env.MY_NAVIDROME_PUBLIC_PORT) || outputPort);
 let playbackService;
 let playbackEngine;
 let rendererReady = false;
@@ -82,9 +85,13 @@ function printStartup(info) {
   console.log(line);
   console.log(`Renderer status: ready (${audioDevices.platform}/${audioDevices.backend}+avfoundation)`);
   console.log("Runtime: native background process (Electron is not used)");
-  console.log("Navidrome login: use the normal login page in the browser");
-  if (info.urls.length === 0) console.log(`Phone URL: http://127.0.0.1:${info.port} (no LAN address found)`);
-  else info.urls.forEach((url) => console.log(`Phone URL: ${url}`));
+  console.log(`Navidrome login: ${boundNavidrome ? "bound for trusted LAN clients" : "use the normal login page in the browser"}`);
+  if (info.urls.length === 0) console.log(`Phone URL: http://127.0.0.1:${publicPort} (no LAN address found)`);
+  else info.urls.forEach((url) => {
+    const publicUrl = new URL(url);
+    publicUrl.port = String(publicPort);
+    console.log(`Phone URL: ${publicUrl.toString().replace(/\/$/, "")}`);
+  });
   console.log("Press Control-C to stop the server.");
   console.log(`${line}\n`);
 }
@@ -102,6 +109,7 @@ async function start() {
     distPath: path.join(__dirname, "..", "dist"),
     onCommand: handlePlaybackCommand,
     port: outputPort,
+    boundNavidrome,
   });
   const info = await playbackService.start();
   await refreshServerAudioDevices();

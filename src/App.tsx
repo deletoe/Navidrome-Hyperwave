@@ -27,6 +27,7 @@ import { useOutputRouting } from "./hooks/useOutputRouting";
 import { useTrackLyrics } from "./hooks/useTrackLyrics";
 import { useVisualPreferences } from "./hooks/useVisualPreferences";
 import type { DesktopCommand } from "./desktop";
+import { loadBoundConnection } from "./lib/serverBootstrap";
 import {
   getThemeById,
   resolveThemeForTrack,
@@ -107,6 +108,7 @@ export default function App() {
   const [notice, setNotice] = useState<string>();
   const [toastVisible, setToastVisible] = useState(false);
   const pendingPlay = useRef(false);
+  const bootstrapAttempted = useRef(false);
   const pendingScrollPosition = useRef<number | undefined>(0);
   const [playRequest, setPlayRequest] = useState(0);
   const automaticTheme = resolveThemeForTrack(currentTrack, visualPreferences.genreMap);
@@ -128,6 +130,22 @@ export default function App() {
   const committedThemeId = useRef(theme.id);
   const [themeSequence, setThemeSequence] = useState(0);
   const toastMessage = navidrome.mutationError || player.error || notice;
+
+  useEffect(() => {
+    if (
+      bootstrapAttempted.current
+      || navidrome.isConnected
+      || typeof navigator === "undefined"
+      || navigator.userAgent.includes("jsdom")
+    ) return;
+    bootstrapAttempted.current = true;
+    void loadBoundConnection()
+      .then((connection) => {
+        if (connection) return navidrome.connect(connection);
+        return undefined;
+      })
+      .catch(() => undefined);
+  }, [navidrome.isConnected]);
 
   useEffect(() => {
     if (committedThemeId.current === theme.id) return;

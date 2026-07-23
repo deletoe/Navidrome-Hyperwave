@@ -4,6 +4,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const { WebSocketServer, WebSocket } = require("ws");
+const { bootstrapPayload, proxyNavidromeRequest } = require("./bound-navidrome.cjs");
 
 const DEFAULT_PORT = 5173;
 const MAX_TRACKS = 500;
@@ -128,11 +129,18 @@ function safeStaticPath(root, requestPath) {
 }
 
 class PlaybackService {
-  constructor({ distPath, onCommand, port = DEFAULT_PORT, hostname = os.hostname() }) {
+  constructor({
+    distPath,
+    onCommand,
+    port = DEFAULT_PORT,
+    hostname = os.hostname(),
+    boundNavidrome,
+  }) {
     this.distPath = distPath;
     this.onCommand = onCommand;
     this.requestedPort = port;
     this.hostname = hostname;
+    this.boundNavidrome = boundNavidrome;
     this.clients = new Set();
     this.controllerTokens = new Map();
     this.playbackState = {
@@ -159,7 +167,15 @@ class PlaybackService {
     if (this.httpServer) return this.getInfo();
     this.webSocketServer = new WebSocketServer({ noServer: true, maxPayload: 3 * 1024 * 1024 });
     this.webSocketServer.on("connection", (socket, request) => this.handleSocket(socket, request));
-    this.httpServer = http.createServer((request, response) => this.handleHttp(request, response));
+    this.httpServer = http.createServer((request, response) => {
+      Promise.resolve(this.handleHttp(request, response)).catch(() => {
+        if (response.headersSent) response.destroy();
+        else {
+          response.writeHead(502, { "Cache-Control": "no-store" });
+          response.end("Navidrome proxy request failed");
+        }
+      });
+    });
     this.httpServer.on("upgrade", (request, socket, head) => {
       let pathname = "";
       try { pathname = new URL(request.url || "/", "http://localhost").pathname; } catch { /* no-op */ }
@@ -286,7 +302,7 @@ class PlaybackService {
     socket.on("error", () => this.clients.delete(socket));
   }
 
-  handleHttp(request, response) {
+  async handleHttp(request, response) {
     const method = request.method || "GET";
     if (method !== "GET" && method !== "HEAD") {
       response.writeHead(405, { Allow: "GET, HEAD" });
@@ -295,6 +311,24 @@ class PlaybackService {
     }
     let pathname;
     try { pathname = new URL(request.url || "/", "http://localhost").pathname; } catch { pathname = "/"; }
+    if (pathname === "/api/bootstrap") {
+      const payload = JSON.stringify(bootstrapPayload(this.boundNavidrome, request));
+      response.writeHead(200, {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      });
+      response.end(method === "HEAD" ? undefined : payload);
+      return;
+    }
+    if (pathname.startsWith("/navidrome/")) {
+      if (!this.boundNavidrome) {
+        response.writeHead(404, { "Cache-Control": "no-store" });
+        response.end();
+        return;
+      }
+      await proxyNavidromeRequest(this.boundNavidrome, request, response);
+      return;
+    }
     if (pathname === "/api/audio/session") {
       const origin = request.headers.origin;
       let hostName = "";

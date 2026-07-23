@@ -17,6 +17,26 @@ internal development port. Vite proxies the same-origin audio session and WebSoc
 client and server output work from the same page. Use `npm run dev:lan` to expose the development
 page to the trusted LAN.
 
+To bind one family Navidrome login at startup, pass a credentialed URL:
+
+```bash
+npm run dev:lan -- \
+  --navidrome-login='http://family:password@192.168.1.10:4533'
+```
+
+Percent-encode special characters in the username or password. For example, `@` becomes `%40`.
+`MY_NAVIDROME_LOGIN` accepts the same value and avoids putting the credential in the process
+arguments:
+
+```bash
+MY_NAVIDROME_LOGIN='http://family:password@192.168.1.10:4533' npm run dev:lan
+```
+
+When a login is bound, browsers on the trusted LAN connect automatically. The real username and
+password stay in server memory. Browsers receive a random proxy session and access Navidrome
+through the same `5173` origin; the server replaces that session with fresh salted Subsonic
+authentication for each upstream request. Do not use bound login mode on an untrusted network.
+
 For the built production bundle:
 
 ```bash

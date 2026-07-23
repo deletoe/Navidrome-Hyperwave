@@ -8,13 +8,14 @@ const outputTarget = `http://127.0.0.1:${outputPort}`;
 
 const outputRenderer = spawn(
   process.execPath,
-  ["desktop/output-server-main.cjs"],
+  ["desktop/output-server-main.cjs", ...process.argv.slice(2)],
   {
     cwd: root,
     stdio: "inherit",
     env: {
       ...process.env,
       MY_NAVIDROME_OUTPUT_PORT: String(outputPort),
+      MY_NAVIDROME_PUBLIC_PORT: String(frontendPort),
     },
   },
 );

@@ -30,8 +30,33 @@ function wavBuffer(durationSeconds = 3, sampleRate = 8_000) {
 }
 
 const wave = wavBuffer();
+let observedProxyAuthentication = false;
 const fakeNavidrome = http.createServer((request, response) => {
-  if (!request.url?.startsWith("/rest/stream.view")) {
+  const requestUrl = new URL(request.url || "/", `http://127.0.0.1:${navidromePort}`);
+  if (
+    requestUrl.searchParams.get("u") !== "smoke-user"
+    || requestUrl.searchParams.get("t")?.length !== 32
+    || !requestUrl.searchParams.get("s")
+  ) {
+    response.writeHead(401);
+    response.end();
+    return;
+  }
+  observedProxyAuthentication = true;
+  if (requestUrl.pathname === "/rest/ping.view") {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      "subsonic-response": {
+        status: "ok",
+        version: "1.16.1",
+        type: "navidrome",
+        serverVersion: "smoke",
+        openSubsonic: true,
+      },
+    }));
+    return;
+  }
+  if (requestUrl.pathname !== "/rest/stream.view") {
     response.writeHead(404);
     response.end();
     return;
@@ -52,7 +77,10 @@ const fakeNavidrome = http.createServer((request, response) => {
 fakeNavidrome.listen(navidromePort, "127.0.0.1");
 await once(fakeNavidrome, "listening");
 
-const outputServer = spawn(process.execPath, ["desktop/output-server-main.cjs"], {
+const outputServer = spawn(process.execPath, [
+  "desktop/output-server-main.cjs",
+  `--navidrome-login=http://smoke-user:smoke-password@127.0.0.1:${navidromePort}`,
+], {
   cwd: new URL("../", import.meta.url),
   env: {
     ...process.env,
@@ -93,6 +121,20 @@ async function waitForMessage(socket, predicate, timeoutMs = 8_000) {
 
 try {
   await waitForServer();
+  const bootstrapResponse = await fetch(`http://127.0.0.1:${outputPort}/api/bootstrap`);
+  const bootstrap = await bootstrapResponse.json();
+  if (bootstrap.configured !== true || bootstrap.connection?.auth?.type !== "apiKey") {
+    throw new Error("Bound Navidrome bootstrap was not available");
+  }
+  if (JSON.stringify(bootstrap).includes("smoke-password")) {
+    throw new Error("Bound Navidrome password escaped into the browser bootstrap");
+  }
+  const pingResponse = await fetch(
+    `${bootstrap.connection.serverUrl}/rest/ping.view?apiKey=${bootstrap.connection.auth.apiKey}`,
+  );
+  if (!pingResponse.ok || !observedProxyAuthentication) {
+    throw new Error("Bound Navidrome proxy authentication failed");
+  }
   const sessionResponse = await fetch(`http://127.0.0.1:${outputPort}/api/audio/session`);
   const { token } = await sessionResponse.json();
   const socket = new WebSocket(`ws://127.0.0.1:${outputPort}/audio-control?token=${token}`);
@@ -107,7 +149,7 @@ try {
         id: "smoke-track",
         title: "Output server smoke",
         duration: 3,
-        streamUrl: `http://127.0.0.1:${navidromePort}/rest/stream.view?id=smoke-track`,
+        streamUrl: `${bootstrap.connection.serverUrl}/rest/stream.view?id=smoke-track&apiKey=${bootstrap.connection.auth.apiKey}`,
       }],
       startIndex: 0,
       position: 0,
@@ -142,6 +184,7 @@ try {
   );
   console.log(JSON.stringify({
     automaticSession: true,
+    boundLoginProxy: observedProxyAuthentication,
     playing: stateMessage.state.title,
     duration: stateMessage.state.duration,
     outputDevices: deviceMessage.state.outputDevices.map((device) => device.label),

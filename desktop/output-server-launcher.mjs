@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-const server = spawn(process.execPath, ["desktop/output-server-main.cjs"], {
+const server = spawn(process.execPath, ["desktop/output-server-main.cjs", ...process.argv.slice(2)], {
   cwd: new URL("../", import.meta.url),
   env: process.env,
   stdio: "inherit",

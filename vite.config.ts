@@ -13,9 +13,15 @@ export default defineConfig({
       "/api/audio": {
         target: outputProxyTarget,
       },
+      "/api/bootstrap": {
+        target: outputProxyTarget,
+      },
       "/audio-control": {
         target: outputProxyTarget,
         ws: true,
+      },
+      "/navidrome": {
+        target: outputProxyTarget,
       },
     } : undefined,
     fs: {
