@@ -7,7 +7,7 @@ const outputPort = Math.max(1, Number(process.env.MY_NAVIDROME_DEV_OUTPUT_PORT) 
 const outputTarget = `http://127.0.0.1:${outputPort}`;
 
 const outputRenderer = spawn(
-  "./node_modules/.bin/electron",
+  process.execPath,
   ["desktop/output-server-main.cjs"],
   {
     cwd: root,

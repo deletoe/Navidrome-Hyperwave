@@ -36,17 +36,23 @@ const fakeNavidrome = http.createServer((request, response) => {
     response.end();
     return;
   }
-  response.writeHead(200, {
+  const range = /^bytes=(\d+)-(\d*)$/.exec(request.headers.range || "");
+  const start = range ? Math.min(Number(range[1]), wave.length - 1) : 0;
+  const requestedEnd = range?.[2] ? Number(range[2]) : wave.length - 1;
+  const end = Math.min(Math.max(requestedEnd, start), wave.length - 1);
+  const body = wave.subarray(start, end + 1);
+  response.writeHead(range ? 206 : 200, {
     "Content-Type": "audio/wav",
-    "Content-Length": wave.length,
+    "Content-Length": body.length,
     "Accept-Ranges": "bytes",
+    ...(range ? { "Content-Range": `bytes ${start}-${end}/${wave.length}` } : {}),
   });
-  response.end(wave);
+  response.end(body);
 });
 fakeNavidrome.listen(navidromePort, "127.0.0.1");
 await once(fakeNavidrome, "listening");
 
-const outputServer = spawn("./node_modules/.bin/electron", ["desktop/output-server-main.cjs"], {
+const outputServer = spawn(process.execPath, ["desktop/output-server-main.cjs"], {
   cwd: new URL("../", import.meta.url),
   env: {
     ...process.env,

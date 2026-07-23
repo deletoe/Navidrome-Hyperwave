@@ -12,7 +12,7 @@ For local development with hot reload:
 npm run dev
 ```
 
-This keeps the browser URL at `http://127.0.0.1:5173` and starts the CoreAudio renderer on an
+This keeps the browser URL at `http://127.0.0.1:5173` and starts the native audio engine on an
 internal development port. Vite proxies the same-origin audio session and WebSocket routes, so
 client and server output work from the same page. Use `npm run dev:lan` to expose the development
 page to the trusted LAN.
@@ -45,17 +45,27 @@ so the output service should run only on a trusted host and trusted LAN.
 
 ## Platform adapter contract
 
-Server device enumeration and selection are behind `desktop/server-audio-devices.cjs`:
+The server is a normal Node process and does not start Electron. Playback and device selection
+have separate adapter boundaries:
+
+- `desktop/playback-engine.cjs` chooses the lightweight decoder/player;
+- `desktop/server-audio-devices.cjs` enumerates and selects output devices.
+
+The current macOS playback engine is a small persistent AVFoundation sidecar. It receives bounded
+JSON-line commands from Node and reports playback state without owning an application window or
+Dock process. The helper is compiled into `~/Library/Caches/MyNavidromeOutputServer` on first use.
+
+Device selection currently provides:
 
 - macOS currently uses the implemented CoreAudio adapter;
 - Linux exposes the system default output and reserves a PipeWire/PulseAudio adapter slot;
 - Windows exposes the system default output and reserves a WASAPI adapter slot.
 
-Playback through the server system default works independently of per-device enumeration.
-Adding Linux or Windows device selectors does not require changing the browser protocol, output
-routing state, or settings-page model.
+Linux and Windows playback engines remain adapter slots. Adding GStreamer/PipeWire or
+Media Foundation/WASAPI implementations does not require changing the browser protocol, output
+routing state, queue model, or settings page.
 
-The macOS adapter compiles its Swift helper into
+The macOS device adapter compiles its Swift helper into
 `~/Library/Caches/MyNavidromeOutputServer` on first use. It lists output-capable devices and can
 change the current CoreAudio output without requesting microphone access.
 
