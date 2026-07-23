@@ -8,8 +8,9 @@
   "type": "module",
   "main": "desktop/main.cjs",
   "scripts": {
-    "dev": "vite --host 127.0.0.1",
-    "dev:lan": "vite --host 0.0.0.0",
+    "dev": "node desktop/web-dev-runner.mjs",
+    "dev:web": "vite --host 127.0.0.1",
+    "dev:lan": "MY_NAVIDROME_DEV_HOST=0.0.0.0 node desktop/web-dev-runner.mjs",
     "desktop:dev": "node desktop/dev-runner.mjs",
     "output-server": "npm run build && node desktop/output-server-launcher.mjs",
     "output-server:smoke": "npm run build && node desktop/output-server-smoke.mjs",

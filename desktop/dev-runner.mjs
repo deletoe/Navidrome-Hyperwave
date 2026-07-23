@@ -4,7 +4,7 @@ const root = new URL("../", import.meta.url);
 const devUrl = "http://127.0.0.1:5173";
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
-const vite = spawn(npmCommand, ["run", "dev"], {
+const vite = spawn(npmCommand, ["run", "dev:web"], {
   cwd: root,
   stdio: "inherit",
   env: process.env,

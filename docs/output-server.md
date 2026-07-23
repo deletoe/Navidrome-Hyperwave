@@ -6,6 +6,19 @@ separately paired service or second Navidrome account.
 
 ## Start
 
+For local development with hot reload:
+
+```bash
+npm run dev
+```
+
+This keeps the browser URL at `http://127.0.0.1:5173` and starts the CoreAudio renderer on an
+internal development port. Vite proxies the same-origin audio session and WebSocket routes, so
+client and server output work from the same page. Use `npm run dev:lan` to expose the development
+page to the trusted LAN.
+
+For the built production bundle:
+
 ```bash
 npm install
 npm run output-server
