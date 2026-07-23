@@ -4,7 +4,7 @@ const { PlaybackService } = require("./playback-service.cjs");
 const { withDesktopCorsHeaders } = require("./security.cjs");
 const { createServerAudioDeviceAdapter } = require("./server-audio-devices.cjs");
 const audioDevices = createServerAudioDeviceAdapter();
-const outputPort = Math.max(1, Number(process.env.MY_NAVIDROME_OUTPUT_PORT) || 17856);
+const outputPort = Math.max(1, Number(process.env.MY_NAVIDROME_OUTPUT_PORT) || 5173);
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 let rendererWindow;
 let playbackService;

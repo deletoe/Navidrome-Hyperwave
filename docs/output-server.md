@@ -11,11 +11,11 @@ npm install
 npm run output-server
 ```
 
-The terminal prints one or more URLs, normally `http://<server-lan-ip>:17856`. Open one of those
+The terminal prints one or more URLs, normally `http://<server-lan-ip>:5173`. Open one of those
 URLs on a phone or another computer and use the normal Navidrome connection page. The output
 server does not add another connection or authentication form.
 
-`MY_NAVIDROME_OUTPUT_PORT` changes the default port `17856`.
+`MY_NAVIDROME_OUTPUT_PORT` changes the default port `5173`.
 
 ## Playback flow
 
@@ -53,7 +53,7 @@ change the current CoreAudio output without requesting microphone access.
 - WebSocket connections without a valid token are rejected.
 - Commands, queue sizes, metadata, device IDs, and stream URLs are bounded and validated.
 - Controller tokens and authenticated stream URLs are never broadcast in renderer state.
-- The service is intended for a trusted LAN. Do not expose port `17856` to the public internet.
+- The service is intended for a trusted LAN. Do not expose port `5173` to the public internet.
 
 ## Verification
 

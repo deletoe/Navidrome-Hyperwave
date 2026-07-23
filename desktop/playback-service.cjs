@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { WebSocketServer, WebSocket } = require("ws");
 
-const DEFAULT_PORT = 17856;
+const DEFAULT_PORT = 5173;
 const MAX_TRACKS = 500;
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",

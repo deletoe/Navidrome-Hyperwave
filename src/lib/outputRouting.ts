@@ -53,9 +53,9 @@ export function websocketUrl(endpoint: string): string {
 }
 
 export function defaultServerEndpoint(location: Pick<Location, "protocol" | "hostname" | "port" | "origin">): string {
-  if (location.port === "17856") return location.origin;
+  if (location.port === "5173") return location.origin;
   const protocol = location.protocol === "https:" ? "https:" : "http:";
-  return `${protocol}//${location.hostname || "127.0.0.1"}:17856`;
+  return `${protocol}//${location.hostname || "127.0.0.1"}:5173`;
 }
 
 export function serverEndpointCandidates(
