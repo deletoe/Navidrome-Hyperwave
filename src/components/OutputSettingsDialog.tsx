@@ -21,6 +21,7 @@ export function OutputSettingsDialog({
 
   useEffect(() => {
     closeRef.current?.focus();
+    if (localOutput.supported) void localOutput.refreshDevices().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -51,12 +52,23 @@ export function OutputSettingsDialog({
     return () => document.removeEventListener("keydown", handleKeyboard);
   }, [onClose]);
 
-  async function chooseDevice(): Promise<void> {
+  async function chooseDevice(deviceId: string): Promise<void> {
     setDeviceBusy(true);
     try {
-      await localOutput.selectDevice();
+      await localOutput.selectDevice(deviceId);
     } catch {
       // The controller exposes the browser or permission error inline.
+    } finally {
+      setDeviceBusy(false);
+    }
+  }
+
+  async function discoverDevices(): Promise<void> {
+    setDeviceBusy(true);
+    try {
+      await localOutput.refreshDevices(true);
+    } catch {
+      // The controller exposes permission or enumeration errors inline.
     } finally {
       setDeviceBusy(false);
     }
@@ -125,18 +137,44 @@ export function OutputSettingsDialog({
             <h2 id="local-output-title">This device’s speaker</h2>
             <p>{localOutput.label}</p>
           </div>
+          {localOutput.supported ? (
+            <div className="server-output-device client-output-device">
+              <label htmlFor="client-output-device">Client audio device</label>
+              <div>
+                <select
+                  id="client-output-device"
+                  value={localOutput.deviceId}
+                  disabled={deviceBusy}
+                  onChange={(event) => void chooseDevice(event.currentTarget.value)}
+                >
+                  <option value="">System default</option>
+                  {localOutput.devices
+                    .filter((device) => device.deviceId !== "default")
+                    .map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+                    ))}
+                </select>
+                <button className="button-with-icon" type="button" disabled={deviceBusy} onClick={() => void discoverDevices()}>
+                  <AppIcon name="retry" />
+                  {deviceBusy ? "Scanning…" : "Show all devices"}
+                </button>
+              </div>
+              <p className="output-settings-note">
+                Chrome may ask for microphone permission to reveal every output device and its name.
+                Audio is not recorded; the temporary permission stream is stopped immediately.
+              </p>
+            </div>
+          ) : null}
           <div className="output-settings-actions">
-            <button className="button-with-icon" type="button" disabled={deviceBusy || !localOutput.supported} onClick={() => void chooseDevice()}>
-              <AppIcon name="output" />
-              {deviceBusy ? "Opening device picker…" : "Choose audio device"}
-            </button>
             <button type="button" disabled={deviceBusy || !localOutput.deviceId} onClick={() => void useDefaultDevice()}>
               Use system default
             </button>
           </div>
           {!localOutput.supported ? (
             <p className="output-settings-note">
-              This browser does not expose speaker selection. Use the operating system’s audio picker; playback on this device still works.
+              {window.isSecureContext === false
+                ? "Chrome only exposes speaker selection in a secure context. Localhost works; a plain HTTP LAN address does not."
+                : "This browser does not expose speaker selection. Playback on this device still works through the system default."}
             </p>
           ) : null}
           {localOutput.error ? <p className="output-settings-error" role="alert">{localOutput.error}</p> : null}

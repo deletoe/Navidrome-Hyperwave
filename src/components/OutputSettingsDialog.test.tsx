@@ -13,6 +13,11 @@ function localOutput(): AudioOutputController {
     supported: true,
     deviceId: "phone-speaker",
     label: "Phone speaker",
+    devices: [
+      { deviceId: "phone-speaker", label: "Phone speaker" },
+      { deviceId: "headphones", label: "USB headphones" },
+    ],
+    refreshDevices: vi.fn(async () => undefined),
     selectDevice: vi.fn(async () => undefined),
     useSystemDefault: vi.fn(async () => undefined),
   };
@@ -84,7 +89,7 @@ describe("OutputSettingsDialog", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("uses the browser speaker picker for client-side playback", async () => {
+  it("selects an enumerated client-side output device", async () => {
     const user = userEvent.setup();
     const activeLocalOutput = localOutput();
     render(
@@ -94,7 +99,9 @@ describe("OutputSettingsDialog", () => {
         onClose={vi.fn()}
       />,
     );
-    await user.click(screen.getByRole("button", { name: "Choose audio device" }));
-    expect(activeLocalOutput.selectDevice).toHaveBeenCalledOnce();
+    await user.selectOptions(screen.getByLabelText("Client audio device"), "headphones");
+    expect(activeLocalOutput.selectDevice).toHaveBeenCalledWith("headphones");
+    await user.click(screen.getByRole("button", { name: "Show all devices" }));
+    expect(activeLocalOutput.refreshDevices).toHaveBeenCalledWith(true);
   });
 });

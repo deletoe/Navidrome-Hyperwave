@@ -56,6 +56,8 @@ function playerController(): AudioPlayerController {
       supported: true,
       deviceId: "",
       label: "System default",
+      devices: [],
+      refreshDevices: vi.fn(async () => undefined),
       selectDevice: vi.fn(async () => undefined),
       useSystemDefault: vi.fn(async () => undefined),
     },
