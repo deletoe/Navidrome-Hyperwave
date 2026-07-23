@@ -57,7 +57,6 @@ class NativePlaybackEngine {
 
   stop() {
     this.stopping = true;
-    this.send({ type: "shutdown" });
     this.process?.kill("SIGTERM");
     this.lines?.close();
     this.process = undefined;
