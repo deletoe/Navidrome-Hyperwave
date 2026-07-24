@@ -145,7 +145,7 @@ export interface SubsonicClient {
   scrobble(id: string, submission: boolean): Promise<void>;
   fetchCoverArt(id: string, size?: number, signal?: AbortSignal): Promise<Blob>;
   coverArtUrl(id: string, size?: number): string;
-  streamUrl(id: string, maxBitRate?: number): string;
+  streamUrl(id: string, maxBitRate?: number, format?: "opus"): string;
 }
 
 export function createSubsonicClient(options: CreateSubsonicClientOptions): SubsonicClient {
@@ -329,8 +329,14 @@ export function createSubsonicClient(options: CreateSubsonicClientOptions): Subs
     coverArtUrl(id, size = 512) {
       return endpointUrl(options.serverUrl, "getCoverArt", options.auth, { id, size }, saltFactory);
     },
-    streamUrl(id, maxBitRate) {
-      return endpointUrl(options.serverUrl, "stream", options.auth, { id, maxBitRate }, saltFactory);
+    streamUrl(id, maxBitRate, format) {
+      return endpointUrl(
+        options.serverUrl,
+        "stream",
+        options.auth,
+        { id, maxBitRate, format },
+        saltFactory,
+      );
     },
   };
 }

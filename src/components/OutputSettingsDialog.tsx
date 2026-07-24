@@ -198,7 +198,7 @@ export function OutputSettingsDialog({
             </select>
           </label>
           <p className="output-settings-note">
-            Route changes are automatic and preserve the current queue. Automatic mode defaults to 256 kbps on the external route.
+            Route changes are automatic and preserve the current queue. Automatic mode defaults to Opus 256 kbps on the external route. Browser playback also uses this compatibility fallback for ALAC; native server audio keeps the original stream unless the selected bitrate policy limits it.
           </p>
         </section>
 

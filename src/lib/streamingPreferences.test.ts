@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  browserNeedsCompatibilityTranscode,
   DEFAULT_STREAMING_PREFERENCES,
   maxBitRateForTrack,
   normalizeStreamingPreferences,
+  streamingDecisionForTrack,
 } from "./streamingPreferences";
 
 describe("streaming preferences", () => {
@@ -44,6 +46,53 @@ describe("streaming preferences", () => {
       "internal",
       { mode: "limited", maxBitRate: 128 },
     )).toBe(128);
+  });
+
+  it("uses Opus 256 for ALAC-like M4A in the browser while native playback stays original", () => {
+    const alac = {
+      suffix: "m4a",
+      contentType: "audio/mp4",
+      bitDepth: 24,
+      bitRate: 9216,
+    };
+
+    expect(browserNeedsCompatibilityTranscode(alac)).toBe(true);
+    expect(streamingDecisionForTrack(
+      alac,
+      "internal",
+      { mode: "original", maxBitRate: 128 },
+      "browser",
+    )).toEqual({ maxBitRate: 256, format: "opus" });
+    expect(streamingDecisionForTrack(
+      alac,
+      "internal",
+      { mode: "original", maxBitRate: 128 },
+      "native",
+    )).toEqual({});
+  });
+
+  it("does not transcode ordinary AAC-in-M4A for browser compatibility", () => {
+    const aac = {
+      suffix: "m4a",
+      contentType: "audio/mp4",
+      bitRate: 256,
+    };
+    expect(browserNeedsCompatibilityTranscode(aac)).toBe(false);
+    expect(streamingDecisionForTrack(
+      aac,
+      "internal",
+      DEFAULT_STREAMING_PREFERENCES,
+      "browser",
+    )).toEqual({});
+  });
+
+  it("uses explicit Opus for network bitrate limits", () => {
+    expect(streamingDecisionForTrack(
+      { bitRate: 320, suffix: "mp3", contentType: "audio/mpeg" },
+      "external",
+      DEFAULT_STREAMING_PREFERENCES,
+      "browser",
+    )).toEqual({ maxBitRate: 256, format: "opus" });
   });
 
   it("repairs invalid stored values", () => {

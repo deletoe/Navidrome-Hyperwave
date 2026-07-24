@@ -32,7 +32,7 @@ export interface UseOutputRoutingOptions {
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
   serverUrl: string;
-  streamUrlForTrack(track: Track): string;
+  streamUrlForTrack(track: Track, target?: "browser" | "native"): string;
 }
 
 const SERVER_VISUALIZER: AudioPlayerController["visualizer"] = {
@@ -250,7 +250,7 @@ export function useOutputRouting({
       type: "playQueue",
       tracks: queueState.tracks.map((track) => ({
         ...track,
-        streamUrl: streamUrlForTrack(track),
+        streamUrl: streamUrlForTrack(track, "native"),
       })),
       startIndex: Math.max(0, queueState.currentIndex),
       position: positionOverride ?? (

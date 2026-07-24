@@ -101,6 +101,66 @@ describe("dual-route connection and streaming quality", () => {
       .toContain("max=128");
   });
 
+  it("transcodes ALAC-like M4A to Opus only for browser playback", async () => {
+    const streamUrl = vi.fn((id, maxBitRate, format) =>
+      `http://lan/stream/${id}?max=${maxBitRate ?? "original"}&format=${format ?? "source"}`);
+    const internalClient = navidromeClient({ streamUrl });
+    const { result } = renderHook(() => useNavidrome({
+      clientFactory: vi.fn(() => internalClient),
+    }));
+
+    await act(async () => result.current.connect({
+      internalServerUrl: "http://192.168.1.20:4533",
+      auth: { type: "apiKey", apiKey: "key" },
+    }));
+
+    const alac: Track = {
+      id: "alac",
+      title: "The Sound of Silence",
+      suffix: "m4a",
+      contentType: "audio/mp4",
+      bitDepth: 24,
+      samplingRate: 192000,
+      bitRate: 9216,
+    };
+    expect(result.current.streamUrlForTrack(alac))
+      .toContain("max=256&format=opus");
+    expect(result.current.streamUrlForTrack(alac, "native"))
+      .toContain("max=original&format=source");
+  });
+
+  it("retries an unrecognized unsupported browser source as Opus without affecting native output", async () => {
+    const streamUrl = vi.fn((id, maxBitRate, format) =>
+      `http://lan/stream/${id}?max=${maxBitRate ?? "original"}&format=${format ?? "source"}`);
+    const internalClient = navidromeClient({ streamUrl });
+    const { result } = renderHook(() => useNavidrome({
+      clientFactory: vi.fn(() => internalClient),
+    }));
+
+    await act(async () => result.current.connect({
+      internalServerUrl: "http://192.168.1.20:4533",
+      auth: { type: "apiKey", apiKey: "key" },
+    }));
+
+    const unknown: Track = {
+      id: "unsupported",
+      title: "Unknown codec",
+      suffix: "bin",
+      bitRate: 128,
+    };
+    expect(result.current.streamUrlForTrack(unknown))
+      .toContain("max=original&format=source");
+
+    await act(async () => {
+      expect(await result.current.reportPlaybackFailure(unknown, 4)).toBe(true);
+    });
+
+    expect(result.current.streamUrlForTrack(unknown))
+      .toContain("max=256&format=opus");
+    expect(result.current.streamUrlForTrack(unknown, "native"))
+      .toContain("max=original&format=source");
+  });
+
   it("switches a live internal session to external and retries a failed API request", async () => {
     const internalClient = navidromeClient();
     const externalClient = navidromeClient({

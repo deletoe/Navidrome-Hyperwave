@@ -39,6 +39,9 @@ export interface Track {
   suffix?: string;
   contentType?: string;
   bitRate?: number;
+  bitDepth?: number;
+  samplingRate?: number;
+  channelCount?: number;
 }
 
 export interface StructuredLyricsLine {

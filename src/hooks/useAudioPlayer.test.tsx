@@ -55,7 +55,7 @@ function Harness({
   audioPreferences?: AudioPreferences;
   repeatMode?: QueueState["repeatMode"];
   streamUrlForTrack?: (track: Track) => string;
-  onStreamFailure?: () => Promise<boolean>;
+  onStreamFailure?: (track: Track, mediaErrorCode?: number) => Promise<boolean>;
   onController?: (controller: AudioPlayerController) => void;
 }) {
   const [, dispatch] = useReducer(queueReducer, createInitialQueueState());
@@ -133,6 +133,7 @@ describe("useAudioPlayer", () => {
     act(() => player.handleError());
     expect(player.error).toMatch(/alternate network route/);
     await waitFor(() => expect(onStreamFailure).toHaveBeenCalledOnce());
+    expect(onStreamFailure).toHaveBeenCalledWith(song, 2);
     await waitFor(() => expect(player.error).toBeUndefined());
   });
 

@@ -26,7 +26,7 @@ import type { Track } from "../types";
 export interface UseAudioPlayerOptions {
   client?: SubsonicClient;
   streamUrlForTrack?: (track: Track) => string;
-  onStreamFailure?: () => Promise<boolean>;
+  onStreamFailure?: (track: Track, mediaErrorCode?: number) => Promise<boolean>;
   currentTrack?: Track;
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
@@ -839,14 +839,20 @@ export function useAudioPlayer({
     };
     const audio = audioRef.current;
     const errorMessage = messages[mediaError?.code ?? 0] ?? "The track could not be played";
-    if (onStreamFailure && (mediaError?.code === 2 || mediaError?.code === 4)) {
+    if (
+      onStreamFailure
+      && currentTrack
+      && (mediaError?.code === 2 || mediaError?.code === 4)
+    ) {
       const generation = ++streamRecoveryGeneration.current;
       const shouldResume = playbackIntent.current || playingRef.current;
       if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0) {
         resumeAfterSourceChange.current = audio.currentTime;
       }
-      setError("The stream was interrupted. Trying the alternate network route…");
-      void onStreamFailure().then((switched) => {
+      setError(mediaError?.code === 4
+        ? "The browser cannot play this source format. Trying an Opus compatibility stream…"
+        : "The stream was interrupted. Trying the alternate network route…");
+      void onStreamFailure(currentTrack, mediaError?.code).then((switched) => {
         if (generation !== streamRecoveryGeneration.current) return;
         if (switched) {
           playbackIntent.current = shouldResume;
