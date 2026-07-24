@@ -45,6 +45,8 @@ function Harness({
   visualizerEnabled = false,
   audioPreferences,
   repeatMode = "off",
+  streamUrlForTrack,
+  onStreamFailure,
   onController,
 }: {
   currentTrack?: Track;
@@ -52,6 +54,8 @@ function Harness({
   visualizerEnabled?: boolean;
   audioPreferences?: AudioPreferences;
   repeatMode?: QueueState["repeatMode"];
+  streamUrlForTrack?: (track: Track) => string;
+  onStreamFailure?: () => Promise<boolean>;
   onController?: (controller: AudioPlayerController) => void;
 }) {
   const [, dispatch] = useReducer(queueReducer, createInitialQueueState());
@@ -68,6 +72,8 @@ function Harness({
     currentTrack,
     queueState,
     dispatch,
+    streamUrlForTrack,
+    onStreamFailure,
     visualizerEnabled,
     audioPreferences,
   });
@@ -106,6 +112,30 @@ function QueueOccurrenceHarness({
 }
 
 describe("useAudioPlayer", () => {
+  it("asks the route controller to recover an interrupted stream before surfacing an error", async () => {
+    const onStreamFailure = vi.fn(async () => true);
+    let player!: AudioPlayerController;
+    const { getByTestId } = render(
+      <Harness
+        currentTrack={song}
+        onStreamFailure={onStreamFailure}
+        onController={(controller) => {
+          player = controller;
+        }}
+      />,
+    );
+    const audio = getByTestId("audio") as HTMLAudioElement;
+    Object.defineProperty(audio, "error", {
+      configurable: true,
+      value: { code: 2 },
+    });
+
+    act(() => player.handleError());
+    expect(player.error).toMatch(/alternate network route/);
+    await waitFor(() => expect(onStreamFailure).toHaveBeenCalledOnce());
+    await waitFor(() => expect(player.error).toBeUndefined());
+  });
+
   it("pauses and removes the media source when the queue becomes empty", () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, "pause");
     const load = vi.spyOn(HTMLMediaElement.prototype, "load");

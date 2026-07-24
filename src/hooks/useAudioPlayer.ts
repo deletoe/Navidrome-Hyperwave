@@ -25,6 +25,8 @@ import type { Track } from "../types";
 
 export interface UseAudioPlayerOptions {
   client?: SubsonicClient;
+  streamUrlForTrack?: (track: Track) => string;
+  onStreamFailure?: () => Promise<boolean>;
   currentTrack?: Track;
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
@@ -138,6 +140,8 @@ export function getScrobbleThreshold(duration: number): number {
 
 export function useAudioPlayer({
   client,
+  streamUrlForTrack,
+  onStreamFailure,
   currentTrack,
   queueState,
   dispatch,
@@ -147,6 +151,9 @@ export function useAudioPlayer({
   const audioRef = useRef<HTMLAudioElement>(null);
   const loadedOccurrenceKey = useRef<number | string | undefined>(undefined);
   const loadedClient = useRef<SubsonicClient | undefined>(undefined);
+  const loadedStreamUrl = useRef<string | undefined>(undefined);
+  const resumeAfterSourceChange = useRef<number | undefined>(undefined);
+  const streamRecoveryGeneration = useRef(0);
   const playingRef = useRef(false);
   const startedForLoad = useRef(false);
   const submittedForLoad = useRef(false);
@@ -427,6 +434,9 @@ export function useAudioPlayer({
     }
     loadedOccurrenceKey.current = undefined;
     loadedClient.current = undefined;
+    loadedStreamUrl.current = undefined;
+    resumeAfterSourceChange.current = undefined;
+    streamRecoveryGeneration.current += 1;
     playingRef.current = false;
     startedForLoad.current = false;
     submittedForLoad.current = false;
@@ -481,24 +491,35 @@ export function useAudioPlayer({
       return;
     }
     const loadKey = currentOccurrenceKey ?? currentTrack.id;
-    if (loadedOccurrenceKey.current === loadKey && loadedClient.current === client) return;
+    const nextStreamUrl = streamUrlForTrack?.(currentTrack) || mediaUrls.stream(currentTrack.id);
+    if (
+      loadedOccurrenceKey.current === loadKey
+      && loadedClient.current === client
+      && loadedStreamUrl.current === nextStreamUrl
+    ) return;
 
     const shouldContinuePlayback = playingRef.current;
+    const resumeAt = loadedOccurrenceKey.current === loadKey
+      && Number.isFinite(audio.currentTime)
+      ? Math.max(0, audio.currentTime)
+      : resumeAfterSourceChange.current ?? 0;
+    resumeAfterSourceChange.current = resumeAt > 0 ? resumeAt : undefined;
     playbackAttempt.current += 1;
     playbackIntent.current = shouldContinuePlayback;
     cancelVolumeFade();
     nativePlaying.current = false;
-    audio.src = mediaUrls.stream(currentTrack.id);
+    audio.src = nextStreamUrl;
     audio.load();
     applyEffectiveVolume(audio, 1);
     loadedOccurrenceKey.current = loadKey;
     loadedClient.current = client;
+    loadedStreamUrl.current = nextStreamUrl;
     startedForLoad.current = false;
     submittedForLoad.current = false;
     const trackDuration = currentTrack.duration ?? 0;
     publishedProgressSecond.current = 0;
     publishedDurationSecond.current = getDisplaySecond(trackDuration);
-    setProgress(0);
+    setProgress(resumeAt);
     setDuration(trackDuration);
     setError(undefined);
 
@@ -536,7 +557,7 @@ export function useAudioPlayer({
           setError(playError instanceof Error ? playError.message : "Playback could not continue");
         });
     }
-  }, [client, currentOccurrenceKey, currentTrack, mediaUrls, reset]);
+  }, [client, currentOccurrenceKey, currentTrack, mediaUrls, reset, streamUrlForTrack]);
 
   useEffect(() => {
     if (!currentTrack || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
@@ -713,6 +734,13 @@ export function useAudioPlayer({
   function handleLoadedMetadata(): void {
     const audio = audioRef.current;
     if (!audio) return;
+    const resumeAt = resumeAfterSourceChange.current;
+    if (resumeAt !== undefined && Number.isFinite(audio.duration)) {
+      audio.currentTime = Math.min(resumeAt, Math.max(0, audio.duration - 0.1));
+      publishedProgressSecond.current = getDisplaySecond(audio.currentTime);
+      setProgress(audio.currentTime);
+      resumeAfterSourceChange.current = undefined;
+    }
     const nextDuration = Number.isFinite(audio.duration)
       ? audio.duration
       : currentTrack?.duration ?? 0;
@@ -809,15 +837,42 @@ export function useAudioPlayer({
       3: "The browser could not decode this track",
       4: "This audio source is not supported or authentication expired",
     };
+    const audio = audioRef.current;
+    const errorMessage = messages[mediaError?.code ?? 0] ?? "The track could not be played";
+    if (onStreamFailure && (mediaError?.code === 2 || mediaError?.code === 4)) {
+      const generation = ++streamRecoveryGeneration.current;
+      const shouldResume = playbackIntent.current || playingRef.current;
+      if (audio && Number.isFinite(audio.currentTime) && audio.currentTime > 0) {
+        resumeAfterSourceChange.current = audio.currentTime;
+      }
+      setError("The stream was interrupted. Trying the alternate network route…");
+      void onStreamFailure().then((switched) => {
+        if (generation !== streamRecoveryGeneration.current) return;
+        if (switched) {
+          playbackIntent.current = shouldResume;
+          playingRef.current = shouldResume;
+          setError(undefined);
+          return;
+        }
+        playbackAttempt.current += 1;
+        playbackIntent.current = false;
+        cancelVolumeFade();
+        nativePlaying.current = false;
+        if (audio) applyEffectiveVolume(audio, 1);
+        playingRef.current = false;
+        setIsPlaying(false);
+        setError(errorMessage);
+      });
+      return;
+    }
     playbackAttempt.current += 1;
     playbackIntent.current = false;
     cancelVolumeFade();
     nativePlaying.current = false;
-    const audio = audioRef.current;
     if (audio) applyEffectiveVolume(audio, 1);
     playingRef.current = false;
     setIsPlaying(false);
-    setError(messages[mediaError?.code ?? 0] ?? "The track could not be played");
+    setError(errorMessage);
   }
 
   async function activateAudioGraph(): Promise<void> {

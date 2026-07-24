@@ -2677,6 +2677,22 @@ button.lyrics-player__line {
   gap: 0.68rem;
 }
 
+.connection-form__address {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.connection-form__address small,
+.connection-form__route-note {
+  color: var(--theme-muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.connection-form__route-note {
+  margin: 0.1rem 0 0.25rem;
+}
+
 .connection-form__error {
   padding: 0.75rem;
   border: var(--frame);
@@ -3699,8 +3715,61 @@ button.lyrics-player__line {
   box-shadow: var(--surface-shadow, none);
 }
 
-.output-route-section {
+.output-route-section,
+.stream-quality-section {
   grid-column: 1 / -1;
+}
+
+.stream-quality-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.stream-quality-modes legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.stream-quality-modes label {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: var(--frame);
+  border-radius: var(--control-radius);
+  background: color-mix(in srgb, var(--theme-surface-strong) 68%, transparent);
+}
+
+.stream-quality-modes label:has(input:checked) {
+  border-color: var(--theme-primary);
+  background: color-mix(in srgb, var(--theme-primary) 13%, var(--theme-surface-strong));
+}
+
+.stream-quality-modes span {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.stream-quality-modes small {
+  color: var(--theme-muted);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.stream-quality-limit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(9rem, 13rem);
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+  font-weight: 650;
 }
 
 .output-settings-heading > h2,
@@ -3909,6 +3978,14 @@ button.lyrics-player__line {
   }
 
   .output-route-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stream-quality-modes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stream-quality-limit {
     grid-template-columns: minmax(0, 1fr);
   }
 

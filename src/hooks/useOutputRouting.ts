@@ -10,6 +10,7 @@ import {
   type ServerRendererState,
 } from "../lib/outputRouting";
 import { getCurrentTrack, type QueueAction, type QueueState } from "../state/playerQueue";
+import type { Track } from "../types";
 
 export interface OutputRoutingController {
   route: OutputRoute;
@@ -31,7 +32,7 @@ export interface UseOutputRoutingOptions {
   queueState: QueueState;
   dispatch: Dispatch<QueueAction>;
   serverUrl: string;
-  streamUrlForTrack(id: string): string;
+  streamUrlForTrack(track: Track): string;
 }
 
 const SERVER_VISUALIZER: AudioPlayerController["visualizer"] = {
@@ -249,7 +250,7 @@ export function useOutputRouting({
       type: "playQueue",
       tracks: queueState.tracks.map((track) => ({
         ...track,
-        streamUrl: streamUrlForTrack(track.id),
+        streamUrl: streamUrlForTrack(track),
       })),
       startIndex: Math.max(0, queueState.currentIndex),
       position: positionOverride ?? (
