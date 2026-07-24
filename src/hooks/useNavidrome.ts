@@ -4,9 +4,10 @@ import { normalizeServerUrl } from "../lib/format";
 import { createStableMediaUrlResolver, type StableMediaUrlResolver } from "../lib/mediaUrls";
 import {
   DEFAULT_STREAMING_PREFERENCES,
-  maxBitRateForTrack,
   normalizeStreamingPreferences,
+  streamingDecisionForTrack,
   type ConnectionRoute,
+  type PlaybackTarget,
   type StreamingMode,
   type StreamingPreferences,
 } from "../lib/streamingPreferences";
@@ -280,6 +281,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const artistDirectoryAbortController = useRef<AbortController | undefined>(undefined);
   const albumCache = useRef(new Map<string, Album>());
   const streamUrlCache = useRef(new Map<string, string>());
+  const browserCompatibilityFallbacks = useRef(new Set<string>());
   const routeClients = useRef<RouteClients>({});
   const routeUrls = useRef<Partial<Record<ConnectionRoute, string>>>({});
   const activeRouteRef = useRef<ConnectionRoute | undefined>(undefined);
@@ -334,6 +336,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
   const [routeStatus, setRouteStatus] = useState<"stable" | "probing" | "switching">("stable");
   const [routeNotice, setRouteNotice] = useState<string>();
   const [streamingPreferences, setStreamingPreferences] = useState(readStreamingPreferences);
+  const [compatibilityFallbackRevision, setCompatibilityFallbackRevision] = useState(0);
 
   const starredIds = useMemo(() => new Set(starredSongs.map(({ id }) => id)), [starredSongs]);
 
@@ -413,7 +416,16 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     }
   }
 
-  async function reportPlaybackFailure(): Promise<boolean> {
+  async function reportPlaybackFailure(
+    track: Track,
+    mediaErrorCode?: number,
+  ): Promise<boolean> {
+    if (mediaErrorCode === 4 && !browserCompatibilityFallbacks.current.has(track.id)) {
+      browserCompatibilityFallbacks.current.add(track.id);
+      streamUrlCache.current.clear();
+      setCompatibilityFallbackRevision((revision) => revision + 1);
+      return true;
+    }
     const requestRoute = activeRouteRef.current;
     if (!requestRoute) return false;
     const alternateRoute: ConnectionRoute = requestRoute === "internal" ? "external" : "internal";
@@ -496,6 +508,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     artistDirectoryAbortController.current?.abort(STALE_DETAIL_REQUEST);
     albumCache.current.clear();
     streamUrlCache.current.clear();
+    browserCompatibilityFallbacks.current.clear();
     favoriteVersions.current.clear();
     pendingFavoriteWrites.current.clear();
     favoriteReconcileNeeded.current = false;
@@ -611,6 +624,7 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     artistDirectoryAbortController.current?.abort(STALE_DETAIL_REQUEST);
     albumCache.current.clear();
     streamUrlCache.current.clear();
+    browserCompatibilityFallbacks.current.clear();
     favoriteVersions.current.clear();
     pendingFavoriteWrites.current.clear();
     favoriteReconcileNeeded.current = false;
@@ -656,16 +670,25 @@ export function useNavidrome(options: UseNavidromeOptions = {}) {
     store("mn56.streamingPreferences", JSON.stringify(next));
   }
 
-  const streamUrlForTrack = useCallback((track: Track): string => {
+  const streamUrlForTrack = useCallback((
+    track: Track,
+    target: PlaybackTarget = "browser",
+  ): string => {
     if (!client || !activeRoute) return "";
-    const maxBitRate = maxBitRateForTrack(track, activeRoute, streamingPreferences);
-    const cacheKey = `${track.id}:${maxBitRate ?? "original"}`;
+    const { maxBitRate, format } = streamingDecisionForTrack(
+      track,
+      activeRoute,
+      streamingPreferences,
+      target,
+      browserCompatibilityFallbacks.current.has(track.id),
+    );
+    const cacheKey = `${track.id}:${target}:${maxBitRate ?? "original"}:${format ?? "source"}`;
     const cached = streamUrlCache.current.get(cacheKey);
     if (cached) return cached;
-    const url = client.streamUrl(track.id, maxBitRate);
+    const url = client.streamUrl(track.id, maxBitRate, format);
     streamUrlCache.current.set(cacheKey, url);
     return url;
-  }, [activeRoute, client, streamingPreferences]);
+  }, [activeRoute, client, compatibilityFallbackRevision, streamingPreferences]);
 
   useEffect(() => {
     if (

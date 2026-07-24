@@ -303,12 +303,13 @@ describe("Subsonic endpoint client", () => {
     });
 
     const cover = new URL(client.coverArtUrl("cover 1", 512));
-    const stream = new URL(client.streamUrl("song 1", 320));
+    const stream = new URL(client.streamUrl("song 1", 320, "opus"));
     expect(cover.pathname).toBe("/rest/getCoverArt.view");
     expect(cover.searchParams.get("id")).toBe("cover 1");
     expect(cover.searchParams.get("size")).toBe("512");
     expect(stream.pathname).toBe("/rest/stream.view");
     expect(stream.searchParams.get("maxBitRate")).toBe("320");
+    expect(stream.searchParams.get("format")).toBe("opus");
     expect(stream.searchParams.get("t")).toBe(SparkMD5.hash("secretfixed"));
   });
 

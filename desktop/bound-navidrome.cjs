@@ -1,5 +1,6 @@
 const crypto = require("node:crypto");
 const { Readable } = require("node:stream");
+const { pipeline } = require("node:stream/promises");
 
 function argumentValue(arguments_, name) {
   const inline = arguments_.find((argument) => argument.startsWith(`${name}=`));
@@ -76,7 +77,12 @@ async function proxyNavidromeRequest(config, request, response) {
     response.end();
     return;
   }
-  const headers = { Accept: request.headers.accept || "*/*" };
+  const headers = {
+    Accept: request.headers.accept || "*/*",
+    // Node fetch transparently decompresses encoded responses. Asking for the
+    // identity representation keeps upstream framing usable when available.
+    "Accept-Encoding": "identity",
+  };
   if (request.headers.range) headers.Range = request.headers.range;
   const upstreamResponse = await fetch(target, {
     method: request.method === "HEAD" ? "HEAD" : "GET",
@@ -84,10 +90,10 @@ async function proxyNavidromeRequest(config, request, response) {
     redirect: "manual",
   });
   const responseHeaders = { "Cache-Control": "private, no-store" };
+  const upstreamWasEncoded = Boolean(upstreamResponse.headers.get("content-encoding"));
   for (const name of [
     "accept-ranges",
     "content-disposition",
-    "content-length",
     "content-range",
     "content-type",
     "etag",
@@ -96,12 +102,19 @@ async function proxyNavidromeRequest(config, request, response) {
     const value = upstreamResponse.headers.get(name);
     if (value) responseHeaders[name] = value;
   }
+  // Undici retains the compressed Content-Length header after transparently
+  // decoding the body. Forwarding that value would make downstream HTTP
+  // parsers treat the remaining decoded bytes as a second malformed response.
+  if (!upstreamWasEncoded) {
+    const contentLength = upstreamResponse.headers.get("content-length");
+    if (contentLength) responseHeaders["content-length"] = contentLength;
+  }
   response.writeHead(upstreamResponse.status, responseHeaders);
   if (request.method === "HEAD" || !upstreamResponse.body) {
     response.end();
     return;
   }
-  Readable.fromWeb(upstreamResponse.body).pipe(response);
+  await pipeline(Readable.fromWeb(upstreamResponse.body), response);
 }
 
 module.exports = {
