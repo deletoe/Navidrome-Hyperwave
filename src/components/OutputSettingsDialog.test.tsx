@@ -8,6 +8,15 @@ import { OutputSettingsDialog } from "./OutputSettingsDialog";
 
 afterEach(cleanup);
 
+const streamingProps = {
+  activeRoute: "internal" as const,
+  activeServerUrl: "http://music.test",
+  routeStatus: "stable" as const,
+  streamingPreferences: { mode: "auto" as const, maxBitRate: 256 },
+  onSetStreamingMode: vi.fn(),
+  onSetStreamingMaxBitRate: vi.fn(),
+};
+
 function localOutput(): AudioOutputController {
   return {
     supported: true,
@@ -60,6 +69,29 @@ function routing(): OutputRoutingController {
 }
 
 describe("OutputSettingsDialog", () => {
+  it("exposes automatic, original, and limited bitrate policies", async () => {
+    const user = userEvent.setup();
+    const onSetStreamingMode = vi.fn();
+    const onSetStreamingMaxBitRate = vi.fn();
+    render(
+      <OutputSettingsDialog
+        routing={routing()}
+        localOutput={localOutput()}
+        {...streamingProps}
+        onSetStreamingMode={onSetStreamingMode}
+        onSetStreamingMaxBitRate={onSetStreamingMaxBitRate}
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Active route:/)).toHaveTextContent("internal network");
+    expect(screen.getByRole("radio", { name: /Automatic/ })).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: /Always original/ }));
+    expect(onSetStreamingMode).toHaveBeenCalledWith("original");
+    await user.selectOptions(screen.getByLabelText("Maximum bitrate"), "128");
+    expect(onSetStreamingMaxBitRate).toHaveBeenCalledWith(128);
+  });
+
   it("switches directly between client and built-in server outputs without another setup flow", async () => {
     const user = userEvent.setup();
     const activeRouting = routing();
@@ -69,11 +101,12 @@ describe("OutputSettingsDialog", () => {
       <OutputSettingsDialog
         routing={activeRouting}
         localOutput={activeLocalOutput}
+        {...streamingProps}
         onClose={onClose}
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Audio output" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Audio & streaming" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close audio output settings" })).toHaveFocus();
     await user.tab({ shift: true });
     expect(screen.getByRole("button", { name: "Refresh devices" })).toHaveFocus();
@@ -96,6 +129,7 @@ describe("OutputSettingsDialog", () => {
       <OutputSettingsDialog
         routing={routing()}
         localOutput={activeLocalOutput}
+        {...streamingProps}
         onClose={vi.fn()}
       />,
     );
@@ -123,6 +157,7 @@ describe("OutputSettingsDialog", () => {
         <OutputSettingsDialog
           routing={routing()}
           localOutput={unsupportedLocalOutput}
+          {...streamingProps}
           onClose={vi.fn()}
         />,
       );

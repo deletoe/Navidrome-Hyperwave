@@ -56,6 +56,12 @@ whose built-in renderer plays through the host Mac's CoreAudio devices.
   390px mobile shell with persistent navigation and a compact player.
 - **Flexible playback destinations** — this browser, the system default device,
   a selected browser output, or the built-in server audio renderer.
+- **Internal/external route switching** — save either or both Navidrome addresses;
+  the app prefers the internal route, retries failed API and audio requests through
+  the alternate route, and probes for a stable internal route while using external.
+- **Network-aware bitrate control** — automatic mode keeps source quality internally
+  and requests a 256 kbps transcode for high or unknown bitrate tracks externally;
+  original, always-limited, and custom limit options are available in Audio & streaming.
 - **OpenSubsonic-compatible authentication** — password token/salt authentication
   and API-key mode, without persisting passwords.
 - **Accessible controls** — semantic navigation, visible focus, keyboard support,
@@ -77,8 +83,11 @@ npm ci
 npm run dev
 ```
 
-Open [http://127.0.0.1:5173](http://127.0.0.1:5173), enter your Navidrome
-server address, and sign in with a username/password or API key.
+Open [http://127.0.0.1:5173](http://127.0.0.1:5173), enter an internal Navidrome
+address, an external address, or both, and sign in with a username/password or API key.
+When both are configured, route changes are automatic: an internal failure is recovered
+through external, while foreground external sessions probe internal with adaptive
+15/30/60/120/300-second backoff and require two successful checks before switching back.
 
 For other devices on a trusted local network:
 

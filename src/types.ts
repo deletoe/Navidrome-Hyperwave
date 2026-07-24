@@ -38,6 +38,7 @@ export interface Track {
   starred?: string;
   suffix?: string;
   contentType?: string;
+  bitRate?: number;
 }
 
 export interface StructuredLyricsLine {

@@ -7,7 +7,8 @@ import { AppIcon } from "./AppIcon";
 import { HeroMedia } from "./HeroMedia";
 
 export interface ConnectionGateProps {
-  rememberedServerUrl: string;
+  rememberedInternalServerUrl: string;
+  rememberedExternalServerUrl: string;
   rememberedUsername: string;
   isConnecting: boolean;
   error?: string;
@@ -15,7 +16,8 @@ export interface ConnectionGateProps {
   onConnect: (input: ConnectionInput) => void | Promise<void>;
 }
 export function ConnectionGate({
-  rememberedServerUrl,
+  rememberedInternalServerUrl,
+  rememberedExternalServerUrl,
   rememberedUsername,
   isConnecting,
   error,
@@ -23,7 +25,8 @@ export function ConnectionGate({
   onConnect,
 }: ConnectionGateProps) {
   const desktop = isDesktopApp();
-  const [serverUrl, setServerUrl] = useState(rememberedServerUrl);
+  const [internalServerUrl, setInternalServerUrl] = useState(rememberedInternalServerUrl);
+  const [externalServerUrl, setExternalServerUrl] = useState(rememberedExternalServerUrl);
   const [authMode, setAuthMode] = useState<AuthMode>("password");
   const [username, setUsername] = useState(rememberedUsername);
   const [password, setPassword] = useState("");
@@ -35,7 +38,7 @@ export function ConnectionGate({
       authMode === "password"
         ? { type: "password" as const, username, password }
         : { type: "apiKey" as const, apiKey };
-    void onConnect({ serverUrl, auth });
+    void onConnect({ internalServerUrl, externalServerUrl, auth });
   }
 
   return (
@@ -49,18 +52,36 @@ export function ConnectionGate({
         </p>
 
         <form className="connection-form" onSubmit={submit}>
-          <label htmlFor="server-address">Server address</label>
-          <input
-            id="server-address"
-            name="serverUrl"
-            type="text"
-            inputMode="url"
-            autoComplete="url"
-            placeholder="https://music.example.com"
-            value={serverUrl}
-            onChange={(event) => setServerUrl(event.currentTarget.value)}
-            required
-          />
+          <div className="connection-form__address">
+            <label htmlFor="internal-server-address">Internal network address</label>
+            <input
+              id="internal-server-address"
+              name="internalServerUrl"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="http://192.168.1.20:4533"
+              value={internalServerUrl}
+              onChange={(event) => setInternalServerUrl(event.currentTarget.value)}
+            />
+            <small>Preferred when reachable. Streams use the source quality by default.</small>
+          </div>
+
+          <div className="connection-form__address">
+            <label htmlFor="external-server-address">External network address</label>
+            <input
+              id="external-server-address"
+              name="externalServerUrl"
+              type="text"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="https://music.example.com"
+              value={externalServerUrl}
+              onChange={(event) => setExternalServerUrl(event.currentTarget.value)}
+            />
+            <small>Used when the internal address is blank or unavailable. High-bitrate tracks default to 256 kbps.</small>
+          </div>
+          <p className="connection-form__route-note">Fill either address or both. When both are present, the internal route is tried first.</p>
 
           <fieldset>
             <legend>Authentication</legend>
@@ -148,7 +169,7 @@ export function ConnectionGate({
         <HeroMedia asset={themeAsset} className="hero-media--connection" />
         <span aria-hidden="true">56</span>
         <h2>Private listening session</h2>
-        <p>Only the normalized server address and username may be remembered.</p>
+        <p>Only the normalized internal/external addresses and username may be remembered.</p>
       </aside>
     </main>
   );

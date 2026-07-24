@@ -80,6 +80,8 @@ export default function App() {
   const visualizerEnabled = visualPreferences.preferences.visualizer !== "off";
   const localPlayer = useAudioPlayer({
     client: navidrome.client,
+    streamUrlForTrack: navidrome.streamUrlForTrack,
+    onStreamFailure: navidrome.reportPlaybackFailure,
     currentTrack,
     queueState,
     dispatch,
@@ -90,8 +92,8 @@ export default function App() {
     localPlayer,
     queueState,
     dispatch,
-    serverUrl: navidrome.rememberedServerUrl,
-    streamUrlForTrack: (id) => navidrome.client?.streamUrl(id) ?? "",
+    serverUrl: navidrome.activeServerUrl,
+    streamUrlForTrack: navidrome.streamUrlForTrack,
   });
   const player = outputRouting.player;
   const lyrics = useTrackLyrics(navidrome.client, currentTrack?.id);
@@ -129,7 +131,7 @@ export default function App() {
   });
   const committedThemeId = useRef(theme.id);
   const [themeSequence, setThemeSequence] = useState(0);
-  const toastMessage = navidrome.mutationError || player.error || notice;
+  const toastMessage = navidrome.mutationError || player.error || navidrome.routeNotice || notice;
 
   useEffect(() => {
     if (
@@ -653,7 +655,8 @@ export default function App() {
       >
         <div className="ambient-layer" aria-hidden="true" />
         <ConnectionGate
-          rememberedServerUrl={navidrome.rememberedServerUrl}
+          rememberedInternalServerUrl={navidrome.rememberedInternalServerUrl}
+          rememberedExternalServerUrl={navidrome.rememberedExternalServerUrl}
           rememberedUsername={navidrome.rememberedUsername}
           isConnecting={navidrome.isConnecting}
           error={navidrome.connectionError}
@@ -764,6 +767,12 @@ export default function App() {
         <OutputSettingsDialog
           routing={outputRouting}
           localOutput={localPlayer.output}
+          activeRoute={navidrome.activeRoute}
+          activeServerUrl={navidrome.activeServerUrl}
+          routeStatus={navidrome.routeStatus}
+          streamingPreferences={navidrome.streamingPreferences}
+          onSetStreamingMode={navidrome.setStreamingMode}
+          onSetStreamingMaxBitRate={navidrome.setStreamingMaxBitRate}
           onClose={() => setOutputSettingsOpen(false)}
         />
       ) : null}

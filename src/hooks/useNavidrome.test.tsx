@@ -47,6 +47,118 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("dual-route connection and streaming quality", () => {
+  it("prefers the internal address and keeps original quality in automatic mode", async () => {
+    const internalClient = navidromeClient({
+      streamUrl: vi.fn((id, maxBitRate) => `http://lan/stream/${id}?max=${maxBitRate ?? "original"}`),
+    });
+    const factory = vi.fn(() => internalClient);
+    const { result } = renderHook(() => useNavidrome({ clientFactory: factory }));
+
+    await act(async () => result.current.connect({
+      internalServerUrl: "http://192.168.1.20:4533/",
+      externalServerUrl: "https://music.example.com/",
+      auth: { type: "apiKey", apiKey: "key" },
+    }));
+
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(result.current.activeRoute).toBe("internal");
+    expect(result.current.activeServerUrl).toBe("http://192.168.1.20:4533");
+    expect(result.current.streamUrlForTrack({ id: "lossless", title: "Lossless", bitRate: 1411 }))
+      .toContain("max=original");
+  });
+
+  it("falls back to the external address and caps high-bitrate tracks at 256 kbps", async () => {
+    const internalClient = navidromeClient({
+      ping: vi.fn(async () => {
+        throw new Error("LAN unavailable");
+      }),
+    });
+    const externalClient = navidromeClient({
+      streamUrl: vi.fn((id, maxBitRate) => `https://music.example.com/stream/${id}?max=${maxBitRate ?? "original"}`),
+    });
+    const factory = vi.fn()
+      .mockReturnValueOnce(internalClient)
+      .mockReturnValueOnce(externalClient);
+    const { result } = renderHook(() => useNavidrome({ clientFactory: factory }));
+
+    await act(async () => result.current.connect({
+      internalServerUrl: "http://192.168.1.20:4533",
+      externalServerUrl: "https://music.example.com",
+      auth: { type: "apiKey", apiKey: "key" },
+    }));
+
+    expect(factory).toHaveBeenCalledTimes(2);
+    expect(result.current.activeRoute).toBe("external");
+    expect(result.current.streamUrlForTrack({ id: "high", title: "High", bitRate: 320 }))
+      .toContain("max=256");
+    expect(result.current.streamUrlForTrack({ id: "low", title: "Low", bitRate: 192 }))
+      .toContain("max=original");
+
+    act(() => result.current.setStreamingMode("limited"));
+    act(() => result.current.setStreamingMaxBitRate(128));
+    expect(result.current.streamUrlForTrack({ id: "manual", title: "Manual", bitRate: 96 }))
+      .toContain("max=128");
+  });
+
+  it("switches a live internal session to external and retries a failed API request", async () => {
+    const internalClient = navidromeClient();
+    const externalClient = navidromeClient({
+      getGenres: vi.fn(async () => [{ value: "Recovered" }]),
+    });
+    const factory = vi.fn()
+      .mockReturnValueOnce(internalClient)
+      .mockReturnValueOnce(externalClient);
+    const { result } = renderHook(() => useNavidrome({ clientFactory: factory }));
+    await act(async () => result.current.connect({
+      internalServerUrl: "http://192.168.1.20:4533",
+      externalServerUrl: "https://music.example.com",
+      auth: { type: "apiKey", apiKey: "key" },
+    }));
+    vi.mocked(internalClient.getGenres).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await act(async () => result.current.retryHomeSection("genres"));
+
+    expect(externalClient.ping).toHaveBeenCalled();
+    expect(externalClient.getGenres).toHaveBeenCalled();
+    expect(result.current.activeRoute).toBe("external");
+    expect(result.current.home.genres).toEqual([{ value: "Recovered" }]);
+    expect(result.current.routeNotice).toMatch(/Switched to the external route/);
+  });
+
+  it("probes an unavailable internal route adaptively and requires two successes before returning", async () => {
+    vi.useFakeTimers();
+    try {
+      const internalPing = vi.fn()
+        .mockRejectedValueOnce(new TypeError("LAN unavailable"))
+        .mockResolvedValue({ status: "ok" as const, version: "1.16.1" });
+      const internalClient = navidromeClient({ ping: internalPing });
+      const externalClient = navidromeClient();
+      const factory = vi.fn()
+        .mockReturnValueOnce(internalClient)
+        .mockReturnValueOnce(externalClient);
+      const { result } = renderHook(() => useNavidrome({ clientFactory: factory }));
+      await act(async () => result.current.connect({
+        internalServerUrl: "http://192.168.1.20:4533",
+        externalServerUrl: "https://music.example.com",
+        auth: { type: "apiKey", apiKey: "key" },
+      }));
+      expect(result.current.activeRoute).toBe("external");
+
+      await act(async () => vi.advanceTimersByTimeAsync(15_000));
+      expect(result.current.activeRoute).toBe("external");
+      expect(result.current.routeStatus).toBe("probing");
+
+      await act(async () => vi.advanceTimersByTimeAsync(3_000));
+      expect(internalPing).toHaveBeenCalledTimes(3);
+      expect(result.current.activeRoute).toBe("internal");
+      expect(result.current.routeNotice).toMatch(/stable again/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("detail request generation", () => {
   it("keeps the newest detail when album, artist, and genre requests settle out of order", async () => {
     const albumRequest = deferred<Album>();
@@ -156,7 +268,8 @@ describe("detail request generation", () => {
       await opening;
     });
 
-    expect(result.current.client).toBe(secondClient);
+    expect(secondClient.ping).toHaveBeenCalled();
+    expect(result.current.client).toBeDefined();
     expect(result.current.activeAlbum).toBeUndefined();
     expect(result.current.detailError).toBeUndefined();
     expect(result.current.detailLoading).toBe(false);

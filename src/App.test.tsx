@@ -142,7 +142,14 @@ function connectedController(
     isConnecting: false,
     connectionError: undefined,
     rememberedServerUrl: "",
+    rememberedInternalServerUrl: "",
+    rememberedExternalServerUrl: "",
     rememberedUsername: "",
+    activeRoute: "internal",
+    activeServerUrl: "http://music.test",
+    routeStatus: "stable",
+    routeNotice: undefined,
+    streamingPreferences: { mode: "auto", maxBitRate: 256 },
     home: {
       newest: [],
       random: [],
@@ -175,6 +182,10 @@ function connectedController(
     mutationError: undefined,
     connect: vi.fn(async () => undefined),
     disconnect: vi.fn(),
+    setStreamingMode: vi.fn(),
+    setStreamingMaxBitRate: vi.fn(),
+    streamUrlForTrack: vi.fn(() => "http://music.test/stream"),
+    reportPlaybackFailure: vi.fn(async () => false),
     refreshHome: vi.fn(async () => undefined),
     loadArtists: vi.fn(async () => undefined),
     retryHomeSection: vi.fn(async () => undefined),
@@ -225,7 +236,9 @@ describe("application shell", () => {
     render(<App />);
 
     expect(screen.getByRole("heading", { name: /connect your archive/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/server address/i)).toBeRequired();
+    expect(screen.getByLabelText(/internal network address/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/external network address/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fill either address or both/i)).toBeInTheDocument();
   });
 
   it("does not persist a password field value", async () => {

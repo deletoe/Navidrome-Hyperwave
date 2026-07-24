@@ -2,11 +2,23 @@ import { useEffect, useRef, useState } from "react";
 
 import type { AudioOutputController } from "../hooks/useAudioPlayer";
 import type { OutputRoutingController } from "../hooks/useOutputRouting";
+import {
+  STREAMING_BIT_RATE_OPTIONS,
+  type ConnectionRoute,
+  type StreamingMode,
+  type StreamingPreferences,
+} from "../lib/streamingPreferences";
 import { AppIcon } from "./AppIcon";
 
 export interface OutputSettingsDialogProps {
   routing: OutputRoutingController;
   localOutput: AudioOutputController;
+  activeRoute?: ConnectionRoute;
+  activeServerUrl: string;
+  routeStatus: "stable" | "probing" | "switching";
+  streamingPreferences: StreamingPreferences;
+  onSetStreamingMode(mode: StreamingMode): void;
+  onSetStreamingMaxBitRate(maxBitRate: number): void;
   onClose(): void;
 }
 
@@ -22,6 +34,12 @@ function detectBrowserFamily(userAgent: string): BrowserFamily {
 export function OutputSettingsDialog({
   routing,
   localOutput,
+  activeRoute,
+  activeServerUrl,
+  routeStatus,
+  streamingPreferences,
+  onSetStreamingMode,
+  onSetStreamingMaxBitRate,
   onClose,
 }: OutputSettingsDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -103,7 +121,7 @@ export function OutputSettingsDialog({
       <header className="output-settings-dialog__topbar">
         <div>
           <p className="eyebrow">Playback routing</p>
-          <h1 id="output-settings-title">Audio output</h1>
+          <h1 id="output-settings-title">Audio & streaming</h1>
         </div>
         <button ref={closeRef} className="icon-button" type="button" aria-label="Close audio output settings" onClick={onClose}>
           <AppIcon name="close" />
@@ -111,6 +129,79 @@ export function OutputSettingsDialog({
       </header>
 
       <div className="output-settings-dialog__content">
+        <section className="stream-quality-section" aria-labelledby="stream-quality-title">
+          <div className="output-settings-heading">
+            <p className="eyebrow">Network quality</p>
+            <h2 id="stream-quality-title">Streaming bitrate</h2>
+            <p>
+              Active route: <strong>{activeRoute === "internal" ? "internal network" : "external network"}</strong>
+              {activeServerUrl ? <> · <code>{activeServerUrl}</code></> : null}
+            </p>
+            {routeStatus !== "stable" ? (
+              <p role="status">
+                {routeStatus === "probing"
+                  ? "Checking whether the internal route is stable…"
+                  : "Switching network route…"}
+              </p>
+            ) : null}
+          </div>
+          <fieldset className="stream-quality-modes">
+            <legend>Quality policy</legend>
+            <label>
+              <input
+                type="radio"
+                name="streamingMode"
+                checked={streamingPreferences.mode === "auto"}
+                onChange={() => onSetStreamingMode("auto")}
+              />
+              <span>
+                <strong>Automatic</strong>
+                <small>Original quality internally; cap high-bitrate or unknown tracks externally.</small>
+              </span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="streamingMode"
+                checked={streamingPreferences.mode === "original"}
+                onChange={() => onSetStreamingMode("original")}
+              />
+              <span>
+                <strong>Always original</strong>
+                <small>Never ask Navidrome to transcode for bitrate.</small>
+              </span>
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="streamingMode"
+                checked={streamingPreferences.mode === "limited"}
+                onChange={() => onSetStreamingMode("limited")}
+              />
+              <span>
+                <strong>Always limit</strong>
+                <small>Apply the selected maximum on internal and external routes.</small>
+              </span>
+            </label>
+          </fieldset>
+          <label className="stream-quality-limit" htmlFor="stream-quality-limit">
+            Maximum bitrate
+            <select
+              id="stream-quality-limit"
+              value={streamingPreferences.maxBitRate}
+              disabled={streamingPreferences.mode === "original"}
+              onChange={(event) => onSetStreamingMaxBitRate(Number(event.currentTarget.value))}
+            >
+              {STREAMING_BIT_RATE_OPTIONS.map((bitRate) => (
+                <option key={bitRate} value={bitRate}>{bitRate} kbps</option>
+              ))}
+            </select>
+          </label>
+          <p className="output-settings-note">
+            Route changes are automatic and preserve the current queue. Automatic mode defaults to 256 kbps on the external route.
+          </p>
+        </section>
+
         <section className="output-route-section" aria-labelledby="output-route-title">
           <div className="output-settings-heading">
             <p className="eyebrow">Destination</p>
