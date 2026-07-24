@@ -10,6 +10,15 @@ export interface OutputSettingsDialogProps {
   onClose(): void;
 }
 
+type BrowserFamily = "chrome" | "edge" | "firefox" | "safari";
+
+function detectBrowserFamily(userAgent: string): BrowserFamily {
+  if (/\bEdg\//.test(userAgent)) return "edge";
+  if (/\bFirefox\//.test(userAgent)) return "firefox";
+  if (/\bSafari\//.test(userAgent) && !/\b(?:Chrome|Chromium|CriOS)\//.test(userAgent)) return "safari";
+  return "chrome";
+}
+
 export function OutputSettingsDialog({
   routing,
   localOutput,
@@ -87,6 +96,7 @@ export function OutputSettingsDialog({
 
   const serverReady = routing.connectionStatus === "connected" && routing.serverState?.connected;
   const platformLabel = routing.serverState?.platform || "server";
+  const browserFamily = detectBrowserFamily(window.navigator.userAgent);
 
   return (
     <div ref={dialogRef} className="output-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="output-settings-title">
@@ -171,11 +181,46 @@ export function OutputSettingsDialog({
             </button>
           </div>
           {!localOutput.supported ? (
-            <p className="output-settings-note">
-              {window.isSecureContext === false
-                ? "Chrome only exposes speaker selection in a secure context. Localhost works; a plain HTTP LAN address does not."
-                : "This browser does not expose speaker selection. Playback on this device still works through the system default."}
-            </p>
+            window.isSecureContext === false ? (
+              <div className="output-settings-note insecure-origin-guide">
+                <strong>Enable client audio devices on this HTTP address</strong>
+                <p>Choose your browser. The matching instructions are expanded automatically.</p>
+                <details open={browserFamily === "chrome"}>
+                  <summary>Google Chrome</summary>
+                  <ol>
+                    <li>Open <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                    <li>Add this exact origin: <code>{window.location.origin}</code></li>
+                    <li>Set the flag to Enabled, then relaunch Chrome.</li>
+                  </ol>
+                </details>
+                <details open={browserFamily === "edge"}>
+                  <summary>Microsoft Edge</summary>
+                  <ol>
+                    <li>Open <code>edge://flags/#unsafely-treat-insecure-origin-as-secure</code> in a new tab.</li>
+                    <li>Add this exact origin: <code>{window.location.origin}</code></li>
+                    <li>Set the flag to Enabled, then relaunch Edge.</li>
+                  </ol>
+                </details>
+                <details open={browserFamily === "firefox"}>
+                  <summary>Mozilla Firefox</summary>
+                  <ol>
+                    <li>Open <code>about:config</code> and accept the warning.</li>
+                    <li>Create or edit the String preference <code>dom.securecontext.allowlist</code>.</li>
+                    <li>Add this hostname to its comma-separated value: <code>{window.location.hostname}</code>, then reload this page.</li>
+                  </ol>
+                  <small>Firefox applies this exception to every port on this hostname, not only this app.</small>
+                </details>
+                <details open={browserFamily === "safari"}>
+                  <summary>Apple Safari</summary>
+                  <p>Safari has no equivalent HTTP secure-origin override. Use HTTPS instead. In-page speaker selection requires Safari 18.4 or later on macOS; on iPhone and iPad, use the system audio controls.</p>
+                </details>
+                <small>These overrides weaken browser protections. Only use them for an address you trust on your local network.</small>
+              </div>
+            ) : (
+              <p className="output-settings-note">
+                This browser does not expose speaker selection. Playback on this device still works through the system default.
+              </p>
+            )
           ) : null}
           {localOutput.error ? <p className="output-settings-error" role="alert">{localOutput.error}</p> : null}
         </section>

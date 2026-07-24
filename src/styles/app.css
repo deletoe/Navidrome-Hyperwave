@@ -3785,6 +3785,68 @@ button.lyrics-player__line {
   color: #ffb4c4;
 }
 
+.insecure-origin-guide {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.insecure-origin-guide > strong {
+  color: var(--theme-text);
+  font-family: var(--display-font);
+  font-size: 0.9rem;
+}
+
+.insecure-origin-guide > p,
+.insecure-origin-guide ol,
+.insecure-origin-guide details > p {
+  margin: 0;
+}
+
+.insecure-origin-guide details {
+  border-top: 1px solid color-mix(in srgb, var(--theme-border) 72%, transparent);
+  padding-top: 0.5rem;
+}
+
+.insecure-origin-guide summary {
+  cursor: pointer;
+  color: var(--theme-text);
+  font-weight: 700;
+}
+
+.insecure-origin-guide details[open] summary {
+  margin-bottom: 0.55rem;
+}
+
+.insecure-origin-guide ol {
+  display: grid;
+  gap: 0.45rem;
+  padding-left: 1.25rem;
+}
+
+.insecure-origin-guide details > p {
+  line-height: 1.55;
+}
+
+.insecure-origin-guide details > small {
+  display: block;
+  margin-top: 0.55rem;
+}
+
+.insecure-origin-guide code {
+  padding: 0.12rem 0.3rem;
+  overflow-wrap: anywhere;
+  border: var(--frame);
+  border-radius: 0.3rem;
+  background: color-mix(in srgb, var(--theme-bg) 72%, transparent);
+  color: var(--theme-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  user-select: all;
+}
+
+.insecure-origin-guide small {
+  color: color-mix(in srgb, var(--theme-muted) 80%, #ffcf87);
+}
+
 .output-connection-status[data-status="connected"] {
   border-color: color-mix(in srgb, #67e8a6 48%, var(--theme-border));
   color: #a8f3cc;

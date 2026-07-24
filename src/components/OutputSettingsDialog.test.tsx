@@ -104,4 +104,42 @@ describe("OutputSettingsDialog", () => {
     await user.click(screen.getByRole("button", { name: "Refresh client devices" }));
     expect(activeLocalOutput.refreshDevices).toHaveBeenCalledWith(true);
   });
+
+  it("shows cross-browser insecure-origin guidance with the current LAN address", () => {
+    const secureContextDescriptor = Object.getOwnPropertyDescriptor(window, "isSecureContext");
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: false,
+    });
+    const unsupportedLocalOutput = {
+      ...localOutput(),
+      supported: false,
+      deviceId: "",
+      devices: [],
+    };
+
+    try {
+      render(
+        <OutputSettingsDialog
+          routing={routing()}
+          localOutput={unsupportedLocalOutput}
+          onClose={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText("Enable client audio devices on this HTTP address")).toBeInTheDocument();
+      expect(screen.getByText("chrome://flags/#unsafely-treat-insecure-origin-as-secure")).toBeInTheDocument();
+      expect(screen.getByText("edge://flags/#unsafely-treat-insecure-origin-as-secure")).toBeInTheDocument();
+      expect(screen.getByText("dom.securecontext.allowlist")).toBeInTheDocument();
+      expect(screen.getByText(/Safari has no equivalent HTTP secure-origin override/)).toBeInTheDocument();
+      expect(screen.getAllByText(window.location.origin)).toHaveLength(2);
+      expect(screen.getByText(/Only use them for an address you trust/)).toBeInTheDocument();
+    } finally {
+      if (secureContextDescriptor) {
+        Object.defineProperty(window, "isSecureContext", secureContextDescriptor);
+      } else {
+        Reflect.deleteProperty(window, "isSecureContext");
+      }
+    }
+  });
 });
